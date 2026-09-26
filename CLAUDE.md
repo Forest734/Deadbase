@@ -39,17 +39,20 @@ queries are in-memory functions over those. Two derived facts live only here:
 - **Song identity is the slug** (`slugify(name)`). URLs, `?song=` filters, and song pages all
   key on it. The current data has no slug collisions; re-check that after a re-import.
 
-Date ranges (`from`/`to` on `/api/shows` and `/api/stats`) are inclusive ISO date prefixes
-compared as strings (`inRange`), so `1977`, `1977-05` and `1977-05-08` all work.
-`getStats` excludes `SEGMENTS` (Drums, Space, Jam) from song counts and rankings. Its
-rotation columns are years, or months when the range falls within a single year.
+`/api/shows`, `/api/years` and `/api/stats` share one set of filters (`filterShows`; `filters()`
+in app.js picks them from the query). Date ranges (`from`/`to`) are inclusive ISO date prefixes
+compared as strings (`inRange`), so `1977`, `1977-05` and `1977-05-08` all work. `getYears`
+always returns every career year, zero-filled. `getStats` excludes `SEGMENTS` (Drums, Space,
+Jam) from song counts and rankings. Its rotation columns are the years (or, within a single
+year, the months) that have shows. Venue runs are consecutive in the band's whole history,
+not in the filtered list.
 
 `src/app.js` is thin routing over `data.js` and exports `app` without listening
 (`src/index.js` listens), so tests can bind it to port 0. It also serves `public/` statically.
 README.md has the API table.
 
 **Front end** is native ES modules, no bundler. `public/main.js` is a hash router (`#/`, `#/year/Y`,
-`#/show/ID`, `#/songs`, `#/song/SLUG`, `#/search?q=`, `#/stats?from=&to=`, and
+`#/show/ID`, `#/songs`, `#/song/SLUG`, `#/search?q=`, `#/stats?<place>&from=&to=`, and
 `#/shows?<any /api/shows filter>`, which is where the stats charts link to). Each entry in `routes`
 returns an HTML string that is written into `#view`. While a route loads, the old page stays up,
 dimmed, and a newer navigation replaces a slower one. Shared helpers (`esc`, `api`,
@@ -59,6 +62,9 @@ on each cell's `data-sort` value, ties fall back to the original row order (`dat
 click handler on `#view` covers every table. Fetches use relative `api/...` paths.
 
 **Stats (`public/stats.js`)** draws its charts in HTML and CSS: grids of links, not SVG or canvas.
+It is scoped by `{ site, from, to }`, where `site` holds the place filters (`state`, `country`, or
+`venue` + `city`; `site` because `place()` is the lib helper). Every link on the page carries the
+site, so changing the range keeps the place. A place page also lists its shows at the bottom.
 Tooltips, dragging across the year chart, and the range controls are delegated listeners set up
 once by `wireStats(view)`. Colours come from the `--seq-1..5` / `--bar` tokens in `styles.css`:
 one blue ramp, flipped for dark mode, and checked against both card surfaces. Change them as a

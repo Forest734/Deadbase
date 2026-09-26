@@ -1,29 +1,10 @@
 // Hash router: #/, #/year/1977, #/show/1977-05-08, #/songs, #/song/<slug>,
-// #/search?q=..., #/stats?from=&to=, and #/shows?<any /api/shows filter>.
-import { api, esc, formatDate, place, sortableTable, sortTable } from "./lib.js";
+// #/search?q=..., #/stats?<filters>, and #/shows?<filters>, where <filters> are
+// any of the /api/shows filters.
+import { api, esc, formatDate, formatDay, place, showList, sortableTable, sortTable } from "./lib.js";
 import { describeFilters, statsPage, wireStats } from "./stats.js";
 
 const view = document.getElementById("view");
-
-function showList(shows) {
-  if (!shows.length) return `<p class="muted">No shows found.</p>`;
-  const link = (s, html) => `<a href="#/show/${esc(s.id)}">${html}</a>`;
-  return sortableTable(
-    [
-      { label: "Date", cell: (s) => link(s, esc(s.date)), sort: (s) => s.id },
-      { label: "Venue", cell: (s) => link(s, esc(s.venue)), sort: (s) => s.venue },
-      { label: "Location", cell: (s) => esc(place(s)), sort: (s) => place(s) },
-      {
-        label: "Songs",
-        num: true,
-        cell: (s) => (s.songCount ? s.songCount : `<span class="muted">—</span>`),
-        sort: (s) => s.songCount,
-      },
-    ],
-    shows,
-    { cls: "shows" },
-  );
-}
 
 const routes = {
   async home() {
@@ -70,7 +51,7 @@ const routes = {
 
   async songs() {
     const songs = await api("songs");
-    const showLink = (id) => `<a href="#/show/${esc(id)}">${esc(id.slice(0, 10))}</a>`;
+    const showLink = (id) => `<a href="#/show/${esc(id)}">${esc(formatDay(id))}</a>`;
     return `<h2>${songs.length} songs</h2>
       <input id="song-filter" type="search" placeholder="Filter songs" aria-label="Filter songs">
       ${sortableTable(
@@ -89,7 +70,7 @@ const routes = {
     const s = await api(`songs/${encodeURIComponent(slug)}`);
     if (!s) return `<h2>Song not found</h2>`;
     return `<h2>${esc(s.name)}</h2>
-      <p class="lede">Played at ${s.count} shows, ${esc(s.shows[0].date)} to ${esc(s.shows.at(-1).date)}.</p>
+      <p class="lede">Played at ${s.count} shows, ${esc(formatDay(s.shows[0].date))} to ${esc(formatDay(s.shows.at(-1).date))}.</p>
       ${showList(s.shows)}`;
   },
 

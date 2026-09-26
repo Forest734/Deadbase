@@ -123,6 +123,7 @@ footer {
 .sortable tbody tr:hover { background: var(--card); }
 .sortable .num { text-align: right; font-variant-numeric: tabular-nums; }
 .sortable td:first-child { font-variant-numeric: tabular-nums; }
+.shows td:first-child, .songs td:nth-child(n+3) { white-space: nowrap; }
 
 .sortable th button {
   font: inherit;
@@ -329,3 +330,6 @@ a.cell:hover, a.cell:focus-visible, a.day:hover, a.day:focus-visible, a.tile:hov
 .tile { display: grid; place-items: center; aspect-ratio: 1; font-size: 0.625rem; font-weight: 600; border-radius: 3px; }
 span.tile { color: var(--muted); }
 .abroad { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--muted); }
+.crumbs { margin: 0 0 0.25rem; font-size: 0.875rem; color: var(--muted); }
+button.link { font: inherit; padding: 0; color: var(--accent); background: none; border: 0; cursor: pointer; }
+button.link:hover { text-decoration: underline; }

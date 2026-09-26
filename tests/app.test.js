@@ -131,3 +131,28 @@ test("stats for one year use months, and an empty range is empty", async () => {
   assert.deepEqual(none.rotation, { buckets: [], songs: [] });
   assert.equal(none.records.longestSetlist, null);
 });
+
+test("years and stats take the same filters as shows", async () => {
+  const winterland = "venue=Winterland&city=San+Francisco";
+  const shows = (await get(`/api/shows?${winterland}`)).body;
+  const years = (await get(`/api/years?${winterland}`)).body;
+  // Every year of the career, with zeros, so charts line up.
+  assert.equal(years.length, 31);
+  assert.equal(years.reduce((n, y) => n + y.count, 0), shows.length);
+  assert.equal(years.find((y) => y.year === 1990).count, 0);
+
+  const stats = (await get(`/api/stats?${winterland}`)).body;
+  assert.equal(stats.totals.shows, shows.length);
+  assert.equal(stats.totals.venues, 1);
+  // Rotation columns are only years that had shows there.
+  assert.ok(!stats.rotation.buckets.some((b) => b.key === "1976"));
+  // A run counts consecutive shows in the band's history, not consecutive
+  // shows in the filtered list: Winterland's longest is October 1974.
+  assert.equal(stats.records.venueRun.shows, 5);
+  assert.equal(stats.records.venueRun.first, "1974-10-16");
+
+  const oregonBrent = (await get("/api/stats?state=OR&from=1979-04-22&to=1990-07-23")).body;
+  const oregonBrentShows = (await get("/api/shows?state=OR&from=1979-04-22&to=1990-07-23")).body;
+  assert.equal(oregonBrent.totals.shows, oregonBrentShows.length);
+  assert.deepEqual(oregonBrent.states.map((s) => s.state), ["OR"]);
+});

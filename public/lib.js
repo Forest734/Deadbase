@@ -5,9 +5,16 @@ export const esc = (s) =>
 
 export const place = (s) => [s.city, s.state ?? s.country].filter(Boolean).join(", ");
 
+// "Sun, May 8, 1977", for headings.
 export const formatDate = (iso) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
     weekday: "short", year: "numeric", month: "short", day: "numeric",
+  });
+
+// "May 8, 1977", for lists and tables. Takes a show id or an ISO date.
+export const formatDay = (iso) =>
+  new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
   });
 
 export async function api(path) {
@@ -49,4 +56,25 @@ export function sortTable(button) {
     return dir * cmp || Number(a.dataset.i) - Number(b.dataset.i);
   });
   table.tBodies[0].append(...rows);
+}
+
+// Sortable table of show summaries, linking each to its show page.
+export function showList(shows) {
+  if (!shows.length) return `<p class="muted">No shows found.</p>`;
+  const link = (s, html) => `<a href="#/show/${esc(s.id)}">${html}</a>`;
+  return sortableTable(
+    [
+      { label: "Date", cell: (s) => link(s, esc(formatDay(s.date))), sort: (s) => s.id },
+      { label: "Venue", cell: (s) => link(s, esc(s.venue)), sort: (s) => s.venue },
+      { label: "Location", cell: (s) => esc(place(s)), sort: (s) => place(s) },
+      {
+        label: "Songs",
+        num: true,
+        cell: (s) => (s.songCount ? s.songCount : `<span class="muted">—</span>`),
+        sort: (s) => s.songCount,
+      },
+    ],
+    shows,
+    { cls: "shows" },
+  );
 }

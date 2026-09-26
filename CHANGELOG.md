@@ -23,9 +23,20 @@ Notable changes to Deadbase. The format follows
 
   Every bar, cell and tile links to the shows behind it, and each chart can be
   shown as a table.
+- Stats for one state, country or venue. Click a state on the map, a country
+  under it, or a venue in the list: the page shows the same charts for just
+  that place, followed by the list of its shows. The era buttons, year menus
+  and year chart keep the place, so you can see, say, California in the
+  Brent era.
 - The `/api/stats` endpoint, and new `/api/shows` filters: `from`/`to` date
   range, `segue`, `venue`, `city`, `state` and `country`. `/api/years` now
-  includes counts for each month.
+  includes counts for each month. `/api/years` and `/api/stats` take the same
+  filters as `/api/shows`.
+
+### Changed
+
+- Show lists, the song index and song pages write dates out ("May 8, 1977")
+  instead of showing them as numbers ("1977-05-08").
 
 ## [0.1.0] - 2026-09-26
 

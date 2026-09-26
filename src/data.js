@@ -53,12 +53,16 @@ export function getSource() {
   return source;
 }
 
-// `months` counts shows per calendar month, January first.
-export function getYears() {
+// Shows per year for every year of the band's career, including years with
+// none that match the filters (see filterShows). `months` counts shows per
+// calendar month, January first.
+export function getYears(filters) {
   const years = new Map();
-  for (const show of shows) {
-    let y = years.get(show.year);
-    if (!y) years.set(show.year, (y = { year: show.year, count: 0, months: Array(12).fill(0) }));
+  for (let year = shows[0].year; year <= shows.at(-1).year; year++) {
+    years.set(year, { year, count: 0, months: Array(12).fill(0) });
+  }
+  for (const show of filterShows(filters)) {
+    const y = years.get(show.year);
     y.count++;
     y.months[Number(show.date.slice(5, 7)) - 1]++;
   }
@@ -67,7 +71,7 @@ export function getYears() {
 
 // `from` and `to` are inclusive ISO date prefixes: "1977", "1977-05" or "1977-05-08".
 function inRange(date, from, to) {
-  return (!from || date >= from) && (!to || date <= `${to}￿`);
+  return (!from || date >= from) && (!to || date <= `${to}\uffff`);
 }
 
 // True if song slug `a` segues straight into `b` somewhere in the show.
@@ -79,7 +83,7 @@ function hasSegue(show, a, b) {
 
 // Filters combine: year, from/to date range, song slug, segue ("slugA,slugB"),
 // exact venue/city/state/country, and free text over venue/city/state/date.
-export function findShows({ year, from, to, song, segue, venue, city, state, country, q } = {}) {
+function filterShows({ year, from, to, song, segue, venue, city, state, country, q } = {}) {
   let result = shows;
   if (year) result = result.filter((s) => s.year === Number(year));
   if (from || to) result = result.filter((s) => inRange(s.date, from, to));
@@ -100,7 +104,11 @@ export function findShows({ year, from, to, song, segue, venue, city, state, cou
       [s.date, s.venue, s.city, s.state, s.country].some((f) => f?.toLowerCase().includes(needle)),
     );
   }
-  return result.map(summary);
+  return result;
+}
+
+export function findShows(filters) {
+  return filterShows(filters).map(summary);
 }
 
 export function getShow(id) {
@@ -149,9 +157,9 @@ const top = (map, n) => [...map].sort((a, b) => b[1] - a[1]).slice(0, n);
 const songRef = (slug) => ({ slug, name: songsBySlug.get(slug).name });
 const ranked = ([slug, shows]) => ({ ...songRef(slug), shows });
 
-// Aggregates over the shows between `from` and `to` (see inRange).
-export function getStats({ from, to } = {}) {
-  const scoped = shows.filter((s) => inRange(s.date, from, to));
+// Aggregates over the shows that match the filters (see filterShows).
+export function getStats(filters) {
+  const scoped = filterShows(filters);
   const inScope = new Set(scoped.map((s) => s.id));
   const played = scoped.filter((s) => s.sets.length);
 
@@ -210,19 +218,8 @@ export function getStats({ from, to } = {}) {
     for (const pair of pairs) tally(segues, pair);
   }
 
-  // Every year (or month) from the first show to the last, even ones without setlists.
-  const buckets = [];
-  if (scoped.length) {
-    const first = bucketOf(scoped[0]);
-    const last = bucketOf(scoped.at(-1));
-    if (byMonth) {
-      for (let m = Number(first.slice(5)); m <= Number(last.slice(5)); m++) {
-        buckets.push(`${first.slice(0, 4)}-${String(m).padStart(2, "0")}`);
-      }
-    } else {
-      for (let y = Number(first); y <= Number(last); y++) buckets.push(String(y));
-    }
-  }
+  // Each year (or month) with a show in scope, including shows without setlists.
+  const buckets = [...new Set(scoped.map(bucketOf))];
 
   const catalog = [...songsBySlug.values()].filter((e) => !SEGMENTS.has(e.slug));
   let bustout = null;
@@ -240,21 +237,27 @@ export function getStats({ from, to } = {}) {
   const venueShow = new Map();
   const states = new Map();
   const countries = new Map();
-  let venueRun = null;
-  let runStart = 0;
-  scoped.forEach((show, i) => {
+  for (const show of scoped) {
     const key = `${show.venue}|${show.city}`;
     tally(venues, key);
     if (!venueShow.has(key)) venueShow.set(key, show);
     tally(show.country === "US" ? states : countries, show.country === "US" ? show.state : show.country);
+  }
 
-    const next = scoped[i + 1];
+  // A run is consecutive shows at one venue in the band's whole history (so a
+  // venue's own stats don't count all its shows as one run); only shows in
+  // scope count towards it.
+  let venueRun = null;
+  let run = [];
+  shows.forEach((show, i) => {
+    if (inScope.has(show.id)) run.push(show);
+    const next = shows[i + 1];
     if (next && next.venue === show.venue && next.city === show.city) return;
-    if (i - runStart + 1 > (venueRun?.shows ?? 1)) {
+    if (run.length > (venueRun?.shows ?? 1)) {
       const { venue, city, state, country } = show;
-      venueRun = { venue, city, state, country, shows: i - runStart + 1, first: scoped[runStart].date, last: show.date };
+      venueRun = { venue, city, state, country, shows: run.length, first: run[0].date, last: run.at(-1).date };
     }
-    runStart = i + 1;
+    run = [];
   });
 
   return {
@@ -266,6 +269,7 @@ export function getStats({ from, to } = {}) {
       songs: songShows.size,
       debuts: catalog.filter((e) => inScope.has(e.showIds[0])).length,
       venues: venues.size,
+      years: new Set(scoped.map((s) => s.year)).size,
       songsPerShow: played.length ? Math.round((entries / played.length) * 10) / 10 : 0,
     },
     rotation: {

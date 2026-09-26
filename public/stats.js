@@ -1,6 +1,7 @@
-// The stats page, #/stats?from=&to=. Every chart covers that date range, and
-// every mark links to the shows behind it (mostly via #/shows?<filters>).
-import { api, esc, formatDate, place, sortableTable } from "./lib.js";
+// The stats page, #/stats?from=&to=, optionally for one place (state=, country=,
+// or venue= plus city=). Every chart covers that scope, and every mark links to
+// the shows behind it (mostly via #/shows?<filters>).
+import { api, esc, formatDate, formatDay, place, showList, sortableTable } from "./lib.js";
 
 // Line-ups by keyboard player, the usual way fans split up the band's history.
 // Pigpen and Keith overlap from late 1971 to mid 1972.
@@ -48,12 +49,13 @@ const STATES = {
 const num = (n) => n.toLocaleString();
 const plural = (n, word) => `${num(n)} ${word}${n === 1 ? "" : "s"}`;
 const query = (filters) => new URLSearchParams(Object.entries(filters).filter(([, v]) => v)).toString();
-const statsHref = (from, to) => `#/stats?${query({ from, to })}`;
+const statsHref = (filters) => `#/stats?${query(filters)}`;
+const PLACE_KEYS = ["venue", "city", "state", "country"];
 const showsHref = (filters) => `#/shows?${query(filters)}`;
 
 // Does a period ("1977" or "1977-05") overlap the from/to range? Same prefix
 // rules as the API's date filter.
-const overlaps = (key, from, to) => (!from || `${key}￿` >= from) && (!to || key <= `${to}￿`);
+const overlaps = (key, from, to) => (!from || `${key}\uffff` >= from) && (!to || key <= `${to}\uffff`);
 
 // Narrow a period to the range, so a link from a partly covered year lists
 // only the shows that the chart counted.
@@ -65,7 +67,7 @@ const clamp = (key, from, to) => ({
 // "1977", "May 1977" or "May 8, 1977", for a date prefix.
 function formatPrefix(prefix) {
   const [y, m, d] = prefix.split("-");
-  if (d) return new Date(`${prefix}T12:00:00`).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  if (d) return formatDay(prefix);
   return m ? `${MONTHS[m - 1]} ${y}` : y;
 }
 
@@ -116,87 +118,109 @@ export async function describeFilters(params) {
 export async function statsPage(params) {
   const from = params.get("from") ?? "";
   const to = params.get("to") ?? "";
-  const range = query({ from, to });
+  const site = Object.fromEntries(PLACE_KEYS.map((k) => [k, params.get(k)]).filter(([, v]) => v));
+  const scope = { site, from, to };
+  const atSite = Object.keys(site).length > 0;
   const oneYear = Boolean(from) && from.slice(0, 4) === to.slice(0, 4);
-  const [years, stats, days] = await Promise.all([
-    api("years"),
-    api(`stats?${range}`),
-    oneYear ? api(`shows?${range}`) : [],
+  const [years, stats, list] = await Promise.all([
+    api(`years?${query(site)}`),
+    api(`stats?${query({ ...site, from, to })}`),
+    atSite || oneYear ? api(`shows?${query({ ...site, from, to })}`) : [],
   ]);
   const era = ERAS.find((e) => e.from === from && e.to === to);
   const { totals } = stats;
-  const heading = `<h2>Stats <span class="muted">· ${esc(era ? `${era.name} era` : formatRange(from, to))}</span></h2>`;
-  if (!totals.shows) return `${heading}${scopeBar(years, from, to)}<p class="muted">No shows in this range.</p>`;
+  const title = site.venue ?? STATES[site.state] ?? site.state ?? site.country ?? site.city ?? "Stats";
+  const heading = `${crumbs(scope, list)}
+    <h2>${esc(title)} <span class="muted">· ${esc(era ? `${era.name} era` : formatRange(from, to))}</span></h2>`;
+  if (!totals.shows) {
+    const hint = atSite ? "Pick years with shows on the chart below." : "";
+    return `${heading}${scopeBar(years, scope)}<p class="muted">No shows in this range. ${hint}</p>
+      ${atSite ? careerFigure(years, scope) : ""}`;
+  }
 
   const coverage = totals.setlists === totals.shows
     ? `setlists for all ${num(totals.shows)} shows`
     : `setlists for ${num(totals.setlists)} of ${num(totals.shows)} shows`;
+  const where = site.venue && list.length ? `${esc(place(list[0]))} · ` : "";
+  const jump = atSite ? ` · <button type="button" class="link" data-jump>List of shows ↓</button>` : "";
   const songLink = (r) => `#/song/${r.slug}`;
   const songLabel = (r) => esc(r.name);
   return `${heading}
-    <p class="lede">${esc(formatPrefix(stats.first))} to ${esc(formatPrefix(stats.last))} · ${coverage}</p>
-    ${scopeBar(years, from, to)}
-    ${yearPager(years, from, to)}
-    ${kpis(totals)}
-    ${careerFigure(years, from, to)}
-    ${oneYear ? dayCalendar(days, Number(from.slice(0, 4))) : ""}
-    ${rotationFigure(stats.rotation, from, to)}
+    <p class="lede">${where}${esc(formatPrefix(stats.first))} to ${esc(formatPrefix(stats.last))} · ${coverage}${jump}</p>
+    ${scopeBar(years, scope)}
+    ${yearPager(years, scope)}
+    ${kpis(totals, site)}
+    ${careerFigure(years, scope)}
+    ${oneYear ? dayCalendar(list, Number(from.slice(0, 4))) : ""}
+    ${rotationFigure(stats.rotation, scope)}
     ${rankedList("Segues", stats.segues, {
       cls: "wide",
       note: "Songs played back to back, without a break. Click a pair for the shows.",
       label: (r) => `${esc(r.from.name)} &gt; ${esc(r.to.name)}`,
-      href: (r) => showsHref({ segue: `${r.from.slug},${r.to.slug}`, from, to }),
+      href: (r) => showsHref({ ...site, segue: `${r.from.slug},${r.to.slug}`, from, to }),
     })}
     <div class="panels">
       ${rankedList("Show openers", stats.openers, { label: songLabel, href: songLink })}
       ${rankedList("Second-set openers", stats.setTwoOpeners, { label: songLabel, href: songLink })}
       ${rankedList("Encores", stats.encores, { label: songLabel, href: songLink })}
     </div>
-    <div class="places">
-      ${stateMap(stats, from, to)}
-      ${rankedList("Venues", stats.venues, {
-        label: (r) => esc(r.venue),
-        sub: (r) => esc(place(r)),
-        href: (r) => showsHref({ venue: r.venue, city: r.city, from, to }),
-      })}
-    </div>
+    ${placesSection(stats, scope)}
     ${recordCards(stats.records)}
+    ${atSite ? `<h3 class="section site-shows">${esc(plural(list.length, "show"))}</h3>${showList(list)}` : ""}
     <p class="muted note">Drums, Space and untitled jams are left out of the song counts and rankings.</p>`;
 }
 
-function scopeBar(years, from, to) {
+// "All places ›", plus the state or country when the page is for a venue.
+function crumbs({ site, from, to }, list) {
+  if (!Object.keys(site).length) return "";
+  const links = [`<a href="${esc(statsHref({ from, to }))}">All places</a>`];
+  const show = list[0];
+  if (site.venue && show) {
+    const parent = show.state ? { state: show.state } : { country: show.country };
+    const name = show.state ? STATES[show.state] ?? show.state : show.country;
+    links.push(`<a href="${esc(statsHref({ ...parent, from, to }))}">${esc(name)}</a>`);
+  }
+  return `<p class="crumbs">${links.join(" › ")} ›</p>`;
+}
+
+function scopeBar(years, { site, from, to }) {
   const chip = (label, f, t) => {
     const current = f === from && t === to ? ' aria-current="page"' : "";
     const title = f ? ` title="${esc(formatRange(f, t))}"` : "";
-    return `<a class="chip" href="${esc(statsHref(f, t))}"${current}${title}>${esc(label)}</a>`;
+    return `<a class="chip" href="${esc(statsHref({ ...site, from: f, to: t }))}"${current}${title}>${esc(label)}</a>`;
   };
   const options = (selected) =>
     years.map((y) => `<option${y.year === selected ? " selected" : ""}>${y.year}</option>`).join("");
-  return `<div class="scope">
+  return `<div class="scope" data-site="${esc(query(site))}">
       <div class="chips" role="group" aria-label="Eras">
         ${chip("All years", "", "")}${ERAS.map((e) => chip(e.name, e.from, e.to)).join("")}
       </div>
       <div class="range">
         <label>From <select data-scope>${options(Number(from.slice(0, 4)) || years[0].year)}</select></label>
         <label>to <select data-scope>${options(Number(to.slice(0, 4)) || years.at(-1).year)}</select></label>
-        <button type="button" class="chip" data-random="${esc(query({ from, to }))}">Random show</button>
+        <button type="button" class="chip" data-random="${esc(query({ ...site, from, to }))}">Random show</button>
       </div>
     </div>`;
 }
 
-function yearPager(years, from, to) {
+// Previous and next year with shows, when the range is a single year.
+function yearPager(years, { site, from, to }) {
   if (from !== to || from.length !== 4) return "";
   const y = Number(from);
-  const step = (n, text) =>
-    years.some((x) => x.year === n) ? `<a href="${esc(statsHref(n, n))}">${text}</a>` : "<span></span>";
-  return `<p class="pager">${step(y - 1, `← ${y - 1}`)}<a href="#/year/${y}">All ${y} shows</a>${step(y + 1, `${y + 1} →`)}</p>`;
+  const played = years.filter((x) => x.count).map((x) => x.year);
+  const step = (n, text) => (n ? `<a href="${esc(statsHref({ ...site, from: n, to: n }))}">${text(n)}</a>` : "<span></span>");
+  const prev = played.filter((x) => x < y).at(-1);
+  const next = played.find((x) => x > y);
+  const middle = Object.keys(site).length ? "<span></span>" : `<a href="#/year/${y}">All ${y} shows</a>`;
+  return `<p class="pager">${step(prev, (n) => `← ${n}`)}${middle}${step(next, (n) => `${n} →`)}</p>`;
 }
 
-function kpis(t) {
+function kpis(t, site) {
   const tile = (label, value) =>
     `<div class="kpi"><span class="kpi-label">${label}</span><span class="kpi-value">${value}</span></div>`;
   return `<div class="kpis">
-      ${tile("Shows", num(t.shows))}${tile("Venues", num(t.venues))}${tile("Different songs", num(t.songs))}
+      ${tile("Shows", num(t.shows))}${site.venue ? tile("Years", num(t.years)) : tile("Venues", num(t.venues))}
+      ${tile("Different songs", num(t.songs))}
       ${tile("Debuts", num(t.debuts))}${tile("Songs per show", t.songsPerShow.toLocaleString())}
     </div>`;
 }
@@ -211,9 +235,9 @@ const tableView = (table) =>
 
 // Shows per year across the whole career, with the range highlighted, over a
 // year-by-month heatmap on the same columns.
-function careerFigure(years, from, to) {
-  const max = Math.max(...years.map((y) => y.count));
-  const step = [10, 20, 25, 50, 100, 200, 500].find((s) => max / s <= 4);
+function careerFigure(years, { site, from, to }) {
+  const max = Math.max(1, ...years.map((y) => y.count));
+  const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => max / s <= 4);
   const top = Math.ceil(max / step) * step;
   const pct = (n) => `${(n / top) * 100}%`;
   const ticks = Array.from({ length: top / step + 1 }, (_, i) => i * step);
@@ -221,7 +245,7 @@ function careerFigure(years, from, to) {
 
   const cols = years.map((y) => {
     const cls = overlaps(String(y.year), from, to) ? "col in" : "col";
-    return `<a class="${cls}" href="${esc(statsHref(y.year, y.year))}" draggable="false" style="--h:${pct(y.count)}"
+    return `<a class="${cls}" href="${esc(statsHref({ ...site, from: y.year, to: y.year }))}" draggable="false" style="--h:${pct(y.count)}"
         data-year="${y.year}" data-count="${y.count}" data-tip="${plural(y.count, "show")}" data-tip-label="${y.year}"
         aria-label="${y.year}: ${plural(y.count, "show")}">${y === peak ? `<span class="peak">${y.count}</span>` : ""}<span class="bar"></span></a>`;
   });
@@ -232,14 +256,14 @@ function careerFigure(years, from, to) {
       const out = overlaps(key, from, to) ? "" : " out";
       if (!n) return `<span class="cell${out}"></span>`;
       const when = `${MONTHS[m]} ${y.year}`;
-      return `<a class="cell b${bin(n, MONTH_BINS)}${out}" href="${esc(showsHref({ from: key, to: key }))}"
+      return `<a class="cell b${bin(n, MONTH_BINS)}${out}" href="${esc(showsHref({ ...site, from: key, to: key }))}"
         data-tip="${plural(n, "show")}" data-tip-label="${when}" aria-label="${when}: ${plural(n, "show")}"></a>`;
     }),
   );
 
   const table = sortableTable(
     [
-      { label: "Year", cell: (y) => `<a href="${esc(statsHref(y.year, y.year))}">${y.year}</a>`, sort: (y) => y.year },
+      { label: "Year", cell: (y) => `<a href="${esc(statsHref({ ...site, from: y.year, to: y.year }))}">${y.year}</a>`, sort: (y) => y.year },
       { label: "Shows", num: true, cell: (y) => y.count, sort: (y) => y.count },
       ...MONTHS.map((m, i) => ({ label: m, num: true, cell: (y) => y.months[i] || "", sort: (y) => y.months[i] })),
     ],
@@ -298,7 +322,7 @@ function dayCalendar(shows, year) {
 
 // The most played songs against time: each cell is the share of that
 // year's (or month's) shows that featured the song.
-function rotationFigure({ buckets, songs }, from, to) {
+function rotationFigure({ buckets, songs }, { site, from, to }) {
   if (buckets.length < 2 || !songs.length) return "";
   const monthly = buckets[0].key.length === 7;
   const name = (key) => (monthly ? `${MONTHS[key.slice(5) - 1]} ${key.slice(0, 4)}` : key);
@@ -314,7 +338,7 @@ function rotationFigure({ buckets, songs }, from, to) {
       if (!b.shows) return `<span class="cell na"></span>`;
       if (!n) return `<span class="cell"></span>`;
       const tip = `${n} of ${plural(b.shows, "show")}`;
-      return `<a class="cell b${bin((n / b.shows) * 100, SHARE_BINS)}" href="${esc(showsHref({ song: s.slug, ...clamp(b.key, from, to) }))}"
+      return `<a class="cell b${bin((n / b.shows) * 100, SHARE_BINS)}" href="${esc(showsHref({ ...site, song: s.slug, ...clamp(b.key, from, to) }))}"
         data-tip="${tip}" data-tip-label="${esc(`${s.name} · ${name(b.key)}`)}" aria-label="${esc(`${s.name}, ${name(b.key)}: ${tip}`)}"></a>`;
     });
     return `<a class="rot-name" href="#/song/${esc(s.slug)}" title="${esc(s.name)}">${esc(s.name)}</a>
@@ -358,6 +382,18 @@ function rankedList(title, rows, { label, href, sub = () => "", note = "", cls =
     </section>`;
 }
 
+function placesSection(stats, { site, from, to }) {
+  if (site.venue) return "";
+  const venues = rankedList("Venues", stats.venues, {
+    cls: Object.keys(site).length ? "wide" : "",
+    note: "Click a venue for its stats and shows.",
+    label: (r) => esc(r.venue),
+    sub: (r) => esc(place(r)),
+    href: (r) => statsHref({ venue: r.venue, city: r.city, from, to }),
+  });
+  return Object.keys(site).length ? venues : `<div class="places">${stateMap(stats, from, to)}${venues}</div>`;
+}
+
 function stateMap({ states, countries }, from, to) {
   const counts = new Map(states.map((s) => [s.state, s.shows]));
   const tiles = STATE_GRID.flatMap((row, r) =>
@@ -366,13 +402,13 @@ function stateMap({ states, countries }, from, to) {
       const n = counts.get(code) ?? 0;
       const at = `grid-area:${r + 1}/${c + 1}`;
       if (!n) return `<span class="tile" style="${at}" data-tip="No shows" data-tip-label="${STATES[code]}">${code}</span>`;
-      return `<a class="tile b${bin(n, STATE_BINS)}" style="${at}" href="${esc(showsHref({ country: "US", state: code, from, to }))}"
+      return `<a class="tile b${bin(n, STATE_BINS)}" style="${at}" href="${esc(statsHref({ state: code, from, to }))}"
         data-tip="${plural(n, "show")}" data-tip-label="${STATES[code]}" aria-label="${STATES[code]}: ${plural(n, "show")}">${code}</a>`;
     }),
   );
   const abroad = countries.length
     ? `<p class="abroad">Outside the US: ${countries
-        .map((c) => `<a href="${esc(showsHref({ country: c.country, from, to }))}">${esc(c.country)}</a> ${c.shows}`)
+        .map((c) => `<a href="${esc(statsHref({ country: c.country, from, to }))}">${esc(c.country)}</a> ${c.shows}`)
         .join(" · ")}</p>`
     : "";
   const table = sortableTable(
@@ -384,7 +420,7 @@ function stateMap({ states, countries }, from, to) {
     { sorted: -1, cls: "compact" },
   );
   return `<figure class="card">
-      <figcaption><h3>Where they played</h3><p>Click a state for its shows.</p></figcaption>
+      <figcaption><h3>Where they played</h3><p>Click a state or country for its stats and shows.</p></figcaption>
       <div class="tiles">${tiles.join("")}</div>
       ${legend("Shows", ["1–4", "5–19", "20–59", "60–199", "200+"])}
       ${abroad}
@@ -430,6 +466,12 @@ export function wireStats(view) {
     tip.style.transform = `translate(${left}px, ${top}px)`;
   }
   const hideTip = () => (tip.hidden = true);
+
+  // A new range keeps the place (state, venue, …) the page is for.
+  const rangeHref = (from, to) => {
+    const site = new URLSearchParams(view.querySelector(".scope")?.dataset.site ?? "");
+    return statsHref({ ...Object.fromEntries(site), from, to });
+  };
   const tipFor = (el, x, y) => showTip(el.dataset.tip, el.dataset.tipLabel ?? "", x, y);
 
   // Dragging across the year columns picks a range; the tooltip shows its total.
@@ -483,7 +525,7 @@ export function wireStats(view) {
     const [lo, hi] = span();
     endBrush();
     brushedAt = e.timeStamp;
-    location.hash = statsHref(lo, hi);
+    location.hash = rangeHref(lo, hi);
   });
   view.addEventListener("pointercancel", () => brush && endBrush());
   view.addEventListener("pointerleave", () => brush || hideTip());
@@ -501,6 +543,9 @@ export function wireStats(view) {
     // pointerup already navigated; keep the column's own link from firing too.
     // (A keyboard-activated click has detail 0 and always goes through.)
     if (e.detail && e.target.closest(".cols") && e.timeStamp - brushedAt < 1000) return e.preventDefault();
+    if (e.target.closest("button[data-jump]")) {
+      return view.querySelector(".site-shows")?.scrollIntoView({ behavior: "smooth" });
+    }
     const random = e.target.closest("button[data-random]");
     if (!random) return;
     const shows = await api(`shows?${random.dataset.random}`);
@@ -512,6 +557,6 @@ export function wireStats(view) {
     const selects = [...e.target.closest(".scope").querySelectorAll("select[data-scope]")];
     const [lo, hi] = selects.map((s) => Number(s.value)).sort((a, b) => a - b);
     const all = lo === Number(selects[0].options[0].value) && hi === Number(selects[0].options[selects[0].options.length - 1].value);
-    location.hash = all ? statsHref("", "") : statsHref(lo, hi);
+    location.hash = all ? rangeHref("", "") : rangeHref(lo, hi);
   });
 }
