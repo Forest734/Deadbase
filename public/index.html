@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deadbase</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <a class="brand" href="#/"><h1>Deadbase</h1></a>
+    <nav>
+      <a href="#/">Years</a>
+      <a href="#/songs">Songs</a>
+    </nav>
+    <form id="search" role="search">
+      <input type="search" name="q" placeholder="Venue, city, or date (1977-05-08)" aria-label="Search shows">
+    </form>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <footer>
+    Setlist data from <a href="https://github.com/jefmsmit/gdshowsdb">gdshowsdb</a> (MIT).
+  </footer>
+  <script src="main.js"></script>
+</body>
+</html>
