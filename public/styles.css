@@ -94,25 +94,6 @@ footer {
 .years strong { display: block; font-size: 1.25rem; }
 .years span { color: var(--muted); font-size: 0.875rem; }
 
-.shows { list-style: none; padding: 0; margin: 0; }
-.shows a {
-  display: grid;
-  grid-template-columns: 6.5rem 1fr auto;
-  gap: 0 1rem;
-  padding: 0.5rem 0.25rem;
-  border-bottom: 1px solid var(--line);
-  color: var(--fg);
-}
-.shows a:hover { background: var(--card); text-decoration: none; }
-.shows .date { font-variant-numeric: tabular-nums; color: var(--accent); }
-.shows .place { color: var(--muted); text-align: right; }
-.shows .muted { grid-column: 2 / -1; font-size: 0.875rem; }
-
-@media (max-width: 36rem) {
-  .shows a { grid-template-columns: 6.5rem 1fr; }
-  .shows .place { grid-column: 2; text-align: left; }
-}
-
 .pager { display: flex; justify-content: space-between; margin: 0 0 1rem; }
 
 .sets { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.5rem; }
@@ -122,12 +103,32 @@ footer {
 .segue { color: var(--muted); font-weight: bold; }
 
 #song-filter { max-width: 20rem; margin-bottom: 1rem; }
-.songs { width: 100%; border-collapse: collapse; }
-.songs th, .songs td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; }
-.songs th { color: var(--muted); font-weight: 600; font-size: 0.875rem; }
-.songs .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.sortable { width: 100%; border-collapse: collapse; }
+.sortable th, .sortable td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--line); text-align: left; }
+.sortable tbody tr:hover { background: var(--card); }
+.sortable .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sortable td:first-child { font-variant-numeric: tabular-nums; }
+
+.sortable th button {
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.sortable th button:hover, .sortable th[aria-sort] button { color: var(--fg); }
+.sortable th button::after { content: " ↕"; opacity: 0.35; }
+.sortable th[aria-sort="ascending"] button::after { content: " ↑"; opacity: 1; }
+.sortable th[aria-sort="descending"] button::after { content: " ↓"; opacity: 1; }
+
+.shows td:nth-child(3) { color: var(--muted); }
 .songs td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 36rem) {
+  .shows th:nth-child(4), .shows td:nth-child(4),
   .songs th:nth-child(3), .songs td:nth-child(3) { display: none; }
 }
