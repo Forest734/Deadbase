@@ -17,8 +17,9 @@ node --test --test-name-pattern="Cornell" tests/app.test.js   # one test
 npm run import -- <gdshowsdb clone>  # regenerate data/shows.json
 ```
 
-No linter, formatter, or build step. `node --check public/main.js` catches front-end syntax errors;
-the tests only cover the API, so front-end changes need checking in a browser (or jsdom).
+No linter, formatter, or build step. `node --check public/*.js` catches front-end syntax errors;
+the tests only cover the API, so front-end changes need checking in a browser (headless
+`google-chrome` is installed and can be driven over its DevTools port).
 
 ## Architecture
 
@@ -38,19 +39,36 @@ queries are in-memory functions over those. Two derived facts live only here:
 - **Song identity is the slug** (`slugify(name)`). URLs, `?song=` filters, and song pages all
   key on it. The current data has no slug collisions; re-check that after a re-import.
 
+Date ranges (`from`/`to` on `/api/shows` and `/api/stats`) are inclusive ISO date prefixes
+compared as strings (`inRange`), so `1977`, `1977-05` and `1977-05-08` all work.
+`getStats` excludes `SEGMENTS` (Drums, Space, Jam) from song counts and rankings. Its
+rotation columns are years, or months when the range falls within a single year.
+
 `src/app.js` is thin routing over `data.js` and exports `app` without listening
 (`src/index.js` listens), so tests can bind it to port 0. It also serves `public/` statically.
 README.md has the API table.
 
-**Front end (`public/main.js`)** is a hash router (`#/`, `#/year/Y`, `#/show/ID`,
-`#/songs`, `#/song/SLUG`, `#/search?q=`). Each entry in `routes` returns an HTML string
-that is written into `#view`. Every interpolated value must go through `esc()`. Tables use
+**Front end** is native ES modules, no bundler. `public/main.js` is a hash router (`#/`, `#/year/Y`,
+`#/show/ID`, `#/songs`, `#/song/SLUG`, `#/search?q=`, `#/stats?from=&to=`, and
+`#/shows?<any /api/shows filter>`, which is where the stats charts link to). Each entry in `routes`
+returns an HTML string that is written into `#view`. While a route loads, the old page stays up,
+dimmed, and a newer navigation replaces a slower one. Shared helpers (`esc`, `api`,
+`sortableTable`, …) live in `public/lib.js`. Every interpolated value must go through `esc()`. Tables use
 `sortableTable(columns, rows)`, where each column is `{ label, cell, sort, num? }`. Sorting happens client-side
 on each cell's `data-sort` value, ties fall back to the original row order (`data-i`), and one delegated
 click handler on `#view` covers every table. Fetches use relative `api/...` paths.
+
+**Stats (`public/stats.js`)** draws its charts in HTML and CSS: grids of links, not SVG or canvas.
+Tooltips, dragging across the year chart, and the range controls are delegated listeners set up
+once by `wireStats(view)`. Colours come from the `--seq-1..5` / `--bar` tokens in `styles.css`:
+one blue ramp, flipped for dark mode, and checked against both card surfaces. Change them as a
+set, not one at a time. `ERAS` holds the keyboard-player eras as exact first and last show dates.
 
 ## Repo notes
 
 - Remote is `git@github-forest734:Forest734/Deadbase.git` (the Forest734 SSH alias, not
   `github.com`). Branch `main`.
 - Commit identity: Forest734 noreply, set globally.
+- `CHANGELOG.md` (Keep a Changelog): record each user-visible change under
+  `## [Unreleased]` in the commit that makes it. When cutting a release, rename that
+  heading to the version and date, and bump `package.json` and the version in `/api`.

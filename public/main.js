@@ -1,56 +1,9 @@
-// Hash router: #/, #/year/1977, #/show/1977-05-08, #/songs, #/song/<slug>, #/search?q=...
+// Hash router: #/, #/year/1977, #/show/1977-05-08, #/songs, #/song/<slug>,
+// #/search?q=..., #/stats?from=&to=, and #/shows?<any /api/shows filter>.
+import { api, esc, formatDate, place, sortableTable, sortTable } from "./lib.js";
+import { describeFilters, statsPage, wireStats } from "./stats.js";
+
 const view = document.getElementById("view");
-
-const esc = (s) =>
-  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-
-const place = (s) => [s.city, s.state ?? s.country].filter(Boolean).join(", ");
-
-const formatDate = (iso) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, {
-    weekday: "short", year: "numeric", month: "short", day: "numeric",
-  });
-
-async function api(path) {
-  const res = await fetch(`api/${path}`);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-// A table whose headers sort it. Each column: { label, cell(row) -> html,
-// sort(row) -> string|number, num? }. `sorted` is the initially sorted column.
-function sortableTable(columns, rows, { sorted = 0, cls = "", rowAttrs = () => "" } = {}) {
-  const head = columns
-    .map((c, i) => `<th class="${c.num ? "num" : ""}" ${i === sorted ? 'aria-sort="ascending"' : ""}>
-        <button type="button" data-col="${i}">${esc(c.label)}</button></th>`)
-    .join("");
-  const body = rows
-    .map((r, ri) => `<tr data-i="${ri}" ${rowAttrs(r)}>${columns
-      .map((c) => `<td class="${c.num ? "num" : ""}" data-sort="${esc(c.sort(r))}">${c.cell(r)}</td>`)
-      .join("")}</tr>`)
-    .join("");
-  return `<table class="sortable ${cls}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-}
-
-function sortTable(button) {
-  const table = button.closest("table");
-  const th = button.parentElement;
-  const col = Number(button.dataset.col);
-  const num = th.classList.contains("num");
-  const dir = th.getAttribute("aria-sort") === "ascending" ? -1 : 1;
-  for (const other of table.querySelectorAll("th")) other.removeAttribute("aria-sort");
-  th.setAttribute("aria-sort", dir === 1 ? "ascending" : "descending");
-
-  const key = (tr) => tr.children[col].dataset.sort;
-  const rows = [...table.tBodies[0].rows];
-  rows.sort((a, b) => {
-    const cmp = num ? Number(key(a)) - Number(key(b)) : key(a).localeCompare(key(b));
-    // Ties keep the original (chronological or alphabetical) order.
-    return dir * cmp || Number(a.dataset.i) - Number(b.dataset.i);
-  });
-  table.tBodies[0].append(...rows);
-}
 
 function showList(shows) {
   if (!shows.length) return `<p class="muted">No shows found.</p>`;
@@ -145,18 +98,38 @@ const routes = {
     const shows = await api(`shows?q=${encodeURIComponent(q)}`);
     return `<h2>Shows matching “${esc(q)}” <span class="muted">· ${shows.length}</span></h2>${showList(shows)}`;
   },
+
+  stats: (_arg, params) => statsPage(params),
+
+  // Where the stats page drills down to; takes any /api/shows filter.
+  async shows(_arg, params) {
+    const [shows, title] = await Promise.all([api(`shows?${params}`), describeFilters(params)]);
+    return `<h2>${esc(title)} <span class="muted">· ${shows.length} shows</span></h2>${showList(shows)}`;
+  },
 };
+
+let renders = 0;
+let lastPath = null;
 
 async function render() {
   const [path, query = ""] = location.hash.replace(/^#\/?/, "").split("?");
   const [name, arg] = path.split("/").map(decodeURIComponent);
   const route = routes[name || "home"];
+  const current = ++renders;
+  // The old page stays up, dimmed, until the new one is ready.
+  view.classList.add("loading");
+  let html;
   try {
-    view.innerHTML = route ? await route(arg, new URLSearchParams(query)) : `<h2>Page not found</h2>`;
+    html = route ? await route(arg, new URLSearchParams(query)) : `<h2>Page not found</h2>`;
   } catch (err) {
-    view.innerHTML = `<h2>Something went wrong</h2><p class="muted">${esc(err.message)}</p>`;
+    html = `<h2>Something went wrong</h2><p class="muted">${esc(err.message)}</p>`;
   }
-  window.scrollTo(0, 0);
+  if (current !== renders) return; // a later navigation won
+  view.innerHTML = html;
+  view.classList.remove("loading");
+  // Changing only the query (a new stats range) keeps the scroll position.
+  if (path !== lastPath) window.scrollTo(0, 0);
+  lastPath = path;
 }
 
 document.getElementById("search").addEventListener("submit", (e) => {
@@ -178,5 +151,6 @@ view.addEventListener("click", (e) => {
   if (button) sortTable(button);
 });
 
+wireStats(view);
 window.addEventListener("hashchange", render);
 render();

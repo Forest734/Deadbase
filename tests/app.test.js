@@ -74,3 +74,60 @@ test("song index and song detail", async () => {
   assert.equal(body.shows.length, body.count);
   assert.equal((await get("/api/songs/no-such-song")).status, 404);
 });
+
+test("filters shows by date range, place, venue and segue", async () => {
+  const may77 = (await get("/api/shows?from=1977-05&to=1977-05")).body;
+  assert.ok(may77.length > 10 && may77.every((s) => s.date.startsWith("1977-05")));
+
+  const brent = (await get("/api/shows?from=1979-04-22&to=1990-07-23")).body;
+  assert.equal(brent[0].id, "1979-04-22");
+  assert.equal(brent.at(-1).id, "1990-07-23");
+
+  const ca77 = (await get("/api/shows?country=US&state=CA&year=1977")).body;
+  assert.ok(ca77.length > 0 && ca77.every((s) => s.state === "CA"));
+
+  const winterland = (await get("/api/shows?venue=Winterland&city=San+Francisco")).body;
+  assert.ok(winterland.length > 50 && winterland.every((s) => s.venue === "Winterland"));
+
+  const scarletFire = (await get("/api/shows?segue=scarlet-begonias,fire-on-the-mountain")).body;
+  assert.ok(scarletFire.some((s) => s.id === "1977-05-08"));
+  const backwards = (await get("/api/shows?segue=fire-on-the-mountain,scarlet-begonias")).body;
+  assert.ok(backwards.length < scarletFire.length);
+});
+
+test("years include per-month counts", async () => {
+  const { body } = await get("/api/years");
+  for (const y of body) {
+    assert.equal(y.months.length, 12);
+    assert.equal(y.months.reduce((a, b) => a + b, 0), y.count);
+  }
+});
+
+test("stats for the whole career", async () => {
+  const { status, body } = await get("/api/stats");
+  assert.equal(status, 200);
+  assert.equal(body.first, "1965-05-05");
+  assert.equal(body.last, "1995-07-09");
+  assert.ok(body.totals.shows > 2000 && body.totals.setlists < body.totals.shows);
+  // Drums and Space are segments, not songs, so they stay out of the rankings.
+  assert.ok(!body.rotation.songs.some((s) => s.slug === "drums" || s.slug === "space"));
+  assert.equal(body.rotation.buckets.length, 31);
+  assert.equal(body.segues[0].from.slug, "china-cat-sunflower");
+  assert.equal(body.segues[0].to.slug, "i-know-you-rider");
+  assert.ok(body.states.find((s) => s.state === "CA").shows > 800);
+  assert.equal(body.records.venueRun.venue, "Warfield Theatre");
+});
+
+test("stats for one year use months, and an empty range is empty", async () => {
+  const { body } = await get("/api/stats?from=1977&to=1977");
+  assert.equal(body.totals.shows, 60);
+  assert.equal(body.rotation.buckets[0].key, "1977-02");
+  // Every rotation cell is a subset of the shows counted in its bucket.
+  for (const song of body.rotation.songs) {
+    song.cells.forEach((n, i) => assert.ok(n <= body.rotation.buckets[i].shows));
+  }
+  const none = (await get("/api/stats?from=2001")).body;
+  assert.equal(none.totals.shows, 0);
+  assert.deepEqual(none.rotation, { buckets: [], songs: [] });
+  assert.equal(none.records.longestSetlist, null);
+});

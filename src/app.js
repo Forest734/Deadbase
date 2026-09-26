@@ -6,6 +6,7 @@ import {
   getSong,
   getSongs,
   getSource,
+  getStats,
   getYears,
   summary,
 } from "./data.js";
@@ -27,14 +28,19 @@ app.get("/api/years", (_req, res) => {
 });
 
 app.get("/api/shows", (req, res) => {
-  const { year, song, q } = req.query;
-  res.json(findShows({ year, song, q }));
+  const { year, from, to, song, segue, venue, city, state, country, q } = req.query;
+  res.json(findShows({ year, from, to, song, segue, venue, city, state, country, q }));
 });
 
 app.get("/api/shows/:id", (req, res) => {
   const show = getShow(req.params.id);
   if (!show) return res.status(404).json({ error: "show not found" });
   res.json({ ...summary(show), sets: show.sets, ...getNeighbors(show.id) });
+});
+
+app.get("/api/stats", (req, res) => {
+  const { from, to } = req.query;
+  res.json(getStats({ from, to }));
 });
 
 app.get("/api/songs", (_req, res) => {

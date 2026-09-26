@@ -1,7 +1,8 @@
 # Deadbase
 
-Browse Grateful Dead setlists by year, show, and song. Express 5 serves a JSON
-API plus a no-build front end in `public/`.
+Browse Grateful Dead setlists by year, show, and song, or explore them on the
+Stats page: charts over any range of years or era, each linking to the shows
+behind it. Express 5 serves a JSON API plus a no-build front end in `public/`.
 
 ```sh
 npm install
@@ -28,11 +29,20 @@ least one other set, is labelled "Encore" (see `src/data.js`).
 
 | Route | Returns |
 |---|---|
-| `GET /api/years` | `[{ year, count }]` |
-| `GET /api/shows?year=&song=&q=` | show summaries; filters combine (`song` is a slug, `q` matches date/venue/city/state/country) |
+| `GET /api/years` | `[{ year, count, months }]`; `months` is 12 per-month counts, January first |
+| `GET /api/shows?year=&from=&to=&song=&segue=&venue=&city=&state=&country=&q=` | show summaries; filters combine (see below) |
 | `GET /api/shows/:id` | one show with `sets[{ label, songs[{ name, slug, segue }] }]`, plus `prev`/`next` ids |
 | `GET /api/songs` | `[{ slug, name, count, first, last }]` |
 | `GET /api/songs/:slug` | a song and every show it was played at |
+| `GET /api/stats?from=&to=` | totals, song rotation, segues, openers, encores, places, venues and records for a date range |
+
+`from` and `to` are inclusive date prefixes: `1977`, `1977-05` or `1977-05-08`.
+`song` is a slug and `segue` is two slugs, `slugA,slugB`, for shows where A
+segues straight into B. `venue`, `city`, `state` and `country` match exactly,
+and `q` matches any part of the date, venue, city, state or country.
+
+The stats leave out Drums, Space and untitled jams, which are parts of a show
+rather than songs and would otherwise top every ranking.
 
 Show ids are the date (`1977-05-08`), with a `-N` suffix when the band played
 more than one show that day.
