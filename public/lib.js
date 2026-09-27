@@ -80,8 +80,8 @@ export const inlineBar = (value, max) =>
 // Show summaries (oldest first) as a sortable table, each linking to its show.
 // In date order, repeat nights at one venue are greyed after the first, which
 // is tagged with the run's length, and a line marks each new month (or year).
-// Lists of 8 or more also get a filter box and, unless `overview` is false, a
-// shows-per-month (or per-year) chart whose columns narrow the list.
+// Lists of 8 or more also get, unless `overview` is false, a shows-per-month
+// (or per-year) chart whose columns narrow the list.
 export function showList(shows, { overview = true } = {}) {
   if (!shows.length) return `<p class="muted">No shows found.</p>`;
   const oneYear = shows[0].year === shows.at(-1).year;
@@ -103,9 +103,8 @@ export function showList(shows, { overview = true } = {}) {
   });
   const rowAttrs = (s) => {
     const m = meta.get(s);
-    const text = [s.date, formatDay(s.date), s.venue, s.city, s.state, s.country].filter(Boolean).join(" ");
     const cls = [m.repeat && "repeat", m.starts && "starts"].filter(Boolean).join(" ");
-    return `class="${cls}" data-period="${m.period}" data-text="${esc(text.toLowerCase())}"`;
+    return `class="${cls}" data-period="${m.period}"`;
   };
 
   const link = (s, html) => `<a href="#/show/${esc(s.id)}">${html}</a>`;
@@ -131,19 +130,13 @@ export function showList(shows, { overview = true } = {}) {
     shows,
     { cls: "shows", rowAttrs },
   );
-  if (shows.length < 8) return table;
-  return `<div class="show-list" data-list>
-      <div class="list-tools">
-        <input type="search" class="list-filter" placeholder="Filter by venue, city or date" aria-label="Filter these shows">
-        <p class="list-status" aria-live="polite">${plural(shows.length, "show")}</p>
-      </div>
-      ${overview ? listOverview(shows, oneYear, periodOf) : ""}
-      ${table}
-    </div>`;
+  if (!overview || shows.length < 8) return table;
+  return `<div class="show-list" data-list>${listOverview(shows, oneYear, periodOf)}${table}</div>`;
 }
 
 // Shows per month of the year (or per year, for longer lists). Each column is
-// a toggle that narrows the list to its period.
+// a toggle that narrows the list to its period; the hint under the chart says
+// how to use it, or what's showing.
 function listOverview(shows, oneYear, periodOf) {
   const counts = new Map();
   for (const s of shows) counts.set(periodOf(s), (counts.get(periodOf(s)) ?? 0) + 1);
@@ -155,59 +148,55 @@ function listOverview(shows, oneYear, periodOf) {
   const max = Math.max(...counts.values());
   const peak = periods.find((p) => counts.get(p) === max);
   const every = oneYear || periods.length <= 8 ? 1 : periods.length > 16 ? 5 : 2;
+  // Every bar has its count on top. On a narrow screen a chart of more than
+  // twelve columns is too tight for that, and keeps only the peak's.
+  const dense = periods.length > 12;
 
   const cols = periods.map((p) => {
     const n = counts.get(p) ?? 0;
     const tip = plural(n, "show");
     const attrs = n ? `data-tip="${tip}" data-tip-label="${label(p)}"` : "disabled";
-    return `<button type="button" class="ov-col" data-period="${p}" style="--h:${(n / max) * 100}%" aria-pressed="false"
-        aria-label="${label(p)}: ${tip}" ${attrs}>${p === peak ? `<span class="ov-peak">${n}</span>` : ""}<span class="bar"></span></button>`;
+    const count = n ? `<span class="ov-count${p === peak ? " ov-max" : ""}">${n}</span>` : "";
+    return `<button type="button" class="ov-col" data-period="${p}" data-label="${label(p)}" style="--h:${(n / max) * 100}%"
+        aria-pressed="false" aria-label="${label(p)}: ${tip}" ${attrs}>${count}<span class="bar"></span></button>`;
   });
   const ticks = periods.map((p, i) => {
     const show = (oneYear ? i : Number(p)) % every === 0;
     return `<span>${show ? (oneYear ? MONTHS[i] : p) : ""}</span>`;
   });
-  return `<div class="overview" style="--n:${periods.length}">
+  const hint = `Click a ${oneYear ? "month" : "year"} to see only its shows.`;
+  return `<div class="overview${dense ? " dense" : ""}" style="--n:${periods.length}">
       <div class="ov-cols">${cols.join("")}</div>
       <div class="ov-axis" aria-hidden="true">${ticks.join("")}</div>
-      <p class="ov-hint">Click a ${oneYear ? "month" : "year"} to see only its shows; click it again for all.</p>
+      <p class="ov-hint" aria-live="polite" data-hint="${hint}">${hint}</p>
     </div>`;
 }
 
-// Delegated listeners for show lists, attached once to #view: the overview
-// columns pick a period, the box matches text, and both apply together.
+// Delegated listeners for show lists, attached once to #view: clicking an
+// overview column shows only that period's rows; clicking it again, or
+// "Show all", brings the rest back.
 export function wireShowLists(view) {
-  const apply = (list) => {
-    const needle = list.querySelector(".list-filter").value.trim().toLowerCase();
-    const period = list.dataset.period ?? "";
+  const pick = (list, col) => {
+    const period = col?.dataset.period ?? "";
+    list.dataset.period = period;
     const rows = [...list.querySelectorAll("tbody tr")];
     let shown = 0;
     for (const row of rows) {
-      row.hidden = Boolean((period && row.dataset.period !== period) || (needle && !row.dataset.text.includes(needle)));
+      row.hidden = Boolean(period) && row.dataset.period !== period;
       if (!row.hidden) shown++;
     }
-    for (const col of list.querySelectorAll(".ov-col")) {
-      col.setAttribute("aria-pressed", String(col.dataset.period === period));
-    }
+    for (const c of list.querySelectorAll(".ov-col")) c.setAttribute("aria-pressed", String(c === col));
     list.classList.toggle("picking", Boolean(period));
-    list.querySelector(".list-status").innerHTML = shown === rows.length
-      ? plural(rows.length, "show")
-      : `${shown.toLocaleString()} of ${plural(rows.length, "show")} · <button type="button" class="link" data-list-clear>Show all</button>`;
+    const hint = list.querySelector(".ov-hint");
+    hint.innerHTML = period
+      ? `${shown.toLocaleString()} of ${plural(rows.length, "show")}, in ${esc(col.dataset.label)} · <button type="button" class="link" data-list-clear>Show all</button>`
+      : esc(hint.dataset.hint);
   };
-  view.addEventListener("input", (e) => {
-    if (e.target.matches(".list-filter")) apply(e.target.closest("[data-list]"));
-  });
   view.addEventListener("click", (e) => {
     const list = e.target.closest("[data-list]");
     if (!list) return;
     const col = e.target.closest(".ov-col");
-    if (col) {
-      list.dataset.period = list.dataset.period === col.dataset.period ? "" : col.dataset.period;
-      apply(list);
-    } else if (e.target.closest("[data-list-clear]")) {
-      list.dataset.period = "";
-      list.querySelector(".list-filter").value = "";
-      apply(list);
-    }
+    if (col) pick(list, list.dataset.period === col.dataset.period ? null : col);
+    else if (e.target.closest("[data-list-clear]")) pick(list, null);
   });
 }

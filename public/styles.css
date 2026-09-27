@@ -179,10 +179,6 @@ footer {
 .shows[data-sorted="0"] tr.repeat td:nth-child(2) a { color: var(--muted); }
 .shows[data-sorted="0"] tr.starts:not(:first-child) td { border-top: 2px solid var(--axis); }
 
-.list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.5rem 0 0.75rem; }
-.list-tools .list-filter { flex: 0 1 20rem; }
-.list-status { margin: 0; font-size: 0.875rem; color: var(--muted); }
-
 /* A list's overview: shows per month or year; each column is a filter toggle. */
 .overview { margin: 0 0 1rem; }
 .ov-cols {
@@ -206,12 +202,15 @@ footer {
   cursor: pointer;
 }
 .ov-col:disabled { cursor: default; }
-.ov-col .bar { width: min(100%, 24px); height: var(--h); background: var(--bar); border-radius: 4px 4px 0 0; }
+.ov-col .bar { width: 75%; height: var(--h); background: var(--bar); border-radius: 4px 4px 0 0; }
 .show-list.picking .ov-col .bar { background: var(--bar-dim); }
 .show-list.picking .ov-col[aria-pressed="true"] .bar { background: var(--bar); }
 .ov-col:hover .bar { filter: brightness(1.15); }
 .ov-col:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
-.ov-peak { position: absolute; bottom: calc(var(--h) + 0.15rem); font-size: 0.75rem; color: var(--muted); }
+.ov-count { position: absolute; bottom: calc(var(--h) + 0.15rem); font-size: 0.75rem; line-height: 1; color: var(--muted); }
+@media (max-width: 50rem) {
+  .overview.dense .ov-count:not(.ov-max) { display: none; }
+}
 .ov-axis { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 2px; margin-top: 0.25rem; font-size: 0.75rem; color: var(--muted); }
 .ov-axis span { display: flex; justify-content: center; white-space: nowrap; }
 .ov-hint { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--muted); }

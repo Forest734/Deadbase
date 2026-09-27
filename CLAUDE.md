@@ -18,8 +18,17 @@ npm run import -- <gdshowsdb clone>  # regenerate data/shows.json
 ```
 
 No linter, formatter, or build step. `node --check public/*.js` catches front-end syntax errors;
-the tests only cover the API, so front-end changes need checking in a browser (headless
-`google-chrome` is installed and can be driven over its DevTools port).
+the tests only cover the API, so front-end changes need checking in a browser:
+
+- Screenshots: `google-chrome --headless --window-size=1000,900 --virtual-time-budget=5000
+  --screenshot=out.png "http://localhost:3000/#/stats"`. Add `--force-dark-mode
+  --blink-settings=preferredColorScheme=0` for dark mode.
+- Interactions: start Chrome with `--remote-debugging-port=9223` and drive it from a throwaway
+  Node script (Node's built-in `WebSocket`, CDP `Input.dispatchMouseEvent` / `Runtime.evaluate`).
+  If a script dies, kill its browser with `pkill -f 'remote-debugging-port=922[3]'`. The
+  bracket stops pkill from matching, and killing, its own shell.
+- `npm run dev`'s `node --watch` has missed a `src/` edit before. If an API change doesn't
+  show up, check the server log for "Restarting" and restart it.
 
 ## Architecture
 
@@ -51,27 +60,42 @@ not in the filtered list.
 (`src/index.js` listens), so tests can bind it to port 0. It also serves `public/` statically.
 README.md has the API table.
 
-**Front end** is native ES modules, no bundler. `public/main.js` is a hash router (`#/`, `#/year/Y`,
-`#/show/ID`, `#/songs`, `#/song/SLUG`, `#/search?q=`, `#/stats?<place>&from=&to=`, and
-`#/shows?<any /api/shows filter>`, which is where the stats charts link to). Each entry in `routes`
-returns an HTML string that is written into `#view`. While a route loads, the old page stays up,
-dimmed, and a newer navigation replaces a slower one. Shared helpers (`esc`, `api`,
-`sortableTable`, …) live in `public/lib.js`. Every interpolated value must go through `esc()`. Tables use
-`sortableTable(columns, rows)`, where each column is `{ label, cell, sort, num?, cls?, note? }`. Sorting happens client-side
-on each cell's `data-sort` value, ties fall back to the original row order (`data-i`), and one delegated
-click handler on `#view` covers every table. The table's `data-sorted` records the current sort
-(`"0"`, `"0d"`, …); CSS uses it to show run and month styling only in ascending date order.
-`showList(shows, { overview })` expects shows oldest first. At 8+ rows it adds a filter box and
-a per-month/per-year chart (`wireShowLists` handles both, client-side only). Fetches use relative `api/...` paths.
+**Front end** is native ES modules, no bundler. Fetches use relative `api/...` paths.
+
+- `public/main.js` is a hash router: `#/`, `#/year/Y`, `#/show/ID`, `#/songs`, `#/song/SLUG`,
+  `#/search?q=`, `#/stats?<place>&from=&to=`, and `#/shows?<any /api/shows filter>`, the
+  drill-down list the Stats charts link to. Each entry in `routes` returns an HTML string that
+  is written into `#view`. While a route loads, the old page stays up, dimmed, and a newer
+  navigation replaces a slower one. Only a change of path, not of query, scrolls to the top.
+- Every interpolated value must go through `esc()`.
+- Filters live in the URL, so nothing needs resetting. The header's Start over is a plain link
+  to `#/` that also clears the search box.
+- `public/lib.js` holds the shared helpers: `esc`, `api`, date formatting, `pageTitle`,
+  `sortableTable`, `showList`, `inlineBar`.
+  - `pageTitle(heading, lede)` puts the skull logo left of a page's title. `public/logo.svg` is
+    a potrace trace, used as a CSS mask painted `--seq-3`.
+  - `sortableTable(columns, rows)` takes columns shaped `{ label, cell, sort, num?, cls?, note? }`.
+    Sorting is client-side on each cell's `data-sort`; ties keep the original row order
+    (`data-i`). One delegated click handler on `#view` covers every table. The table's
+    `data-sorted` records the current sort (`"0"`, `"0d"`, …). CSS uses it to show run and
+    month styling only in ascending date order.
+  - `showList(shows, { overview })` expects shows oldest first. At 8+ rows (and `overview` not
+    false) it adds a per-month/per-year chart whose columns narrow the list; `wireShowLists`
+    handles that, client-side only.
+- **`wireStats(view)` provides the `[data-tip]` tooltip for every page,** not just Stats. The
+  show-list charts and the song index's year bars rely on it.
 
 **Stats (`public/stats.js`)** draws its charts in HTML and CSS: grids of links, not SVG or canvas.
-It is scoped by `{ site, from, to }`, where `site` holds the place filters (`state`, `country`, or
-`venue` + `city`; `site` because `place()` is the lib helper). Every link on the page carries the
-site, so changing the range keeps the place. A place page also lists its shows at the bottom.
-Tooltips, dragging across the year chart, and the range controls are delegated listeners set up
-once by `wireStats(view)`. Colours come from the `--seq-1..5` / `--bar` tokens in `styles.css`:
-one blue ramp, flipped for dark mode, and checked against both card surfaces. Change them as a
-set, not one at a time. `ERAS` holds the keyboard-player eras as exact first and last show dates.
+It is scoped by `{ site, from, to }`, where `site` holds the place filters (`state`, `country`,
+or `venue` + `city`). It's called `site` because `place()` is the lib helper. Every link on the
+page carries the site, so changing the range keeps the place, and a place page also lists its
+shows at the bottom. Dragging across the year chart and the range controls are delegated
+listeners in `wireStats`. `ERAS` holds the keyboard-player eras as exact first and last show dates.
+
+**Colours** come from tokens in `styles.css`. `--seq-1..5` is one blue ramp, flipped for dark
+mode. `--bar` and `--bar-dim` are the single-series and de-emphasis colours. They were checked for
+contrast against the card and page surfaces in both themes, so change them as a set, not one at a
+time.
 
 ## Repo notes
 
