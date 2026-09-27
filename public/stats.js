@@ -1,7 +1,7 @@
 // The stats page, #/stats?from=&to=, optionally for one place (state=, country=,
 // or venue= plus city=). Every chart covers that scope, and every mark links to
 // the shows behind it (mostly via #/shows?<filters>).
-import { api, esc, formatDate, formatDay, place, showList, sortableTable } from "./lib.js";
+import { api, esc, formatDate, formatDay, pageTitle, place, showList, sortableTable } from "./lib.js";
 
 // Line-ups by keyboard player, the usual way fans split up the band's history.
 // Pigpen and Keith overlap from late 1971 to mid 1972.
@@ -134,7 +134,7 @@ export async function statsPage(params) {
     <h2>${esc(title)} <span class="muted">· ${esc(era ? `${era.name} era` : formatRange(from, to))}</span></h2>`;
   if (!totals.shows) {
     const hint = atSite ? "Pick years with shows on the chart below." : "";
-    return `${heading}${scopeBar(years, scope)}<p class="muted">No shows in this range. ${hint}</p>
+    return `${pageTitle(heading)}${scopeBar(years, scope)}<p class="muted">No shows in this range. ${hint}</p>
       ${atSite ? careerFigure(years, scope) : ""}`;
   }
 
@@ -145,8 +145,8 @@ export async function statsPage(params) {
   const jump = atSite ? ` · <button type="button" class="link" data-jump>List of shows ↓</button>` : "";
   const songLink = (r) => `#/song/${r.slug}`;
   const songLabel = (r) => esc(r.name);
-  return `${heading}
-    <p class="lede">${where}${esc(formatPrefix(stats.first))} to ${esc(formatPrefix(stats.last))} · ${coverage}${jump}</p>
+  const lede = `<p class="lede">${where}${esc(formatPrefix(stats.first))} to ${esc(formatPrefix(stats.last))} · ${coverage}${jump}</p>`;
+  return `${pageTitle(heading, lede)}
     ${scopeBar(years, scope)}
     ${yearPager(years, scope)}
     ${kpis(totals, site)}
@@ -198,7 +198,6 @@ function scopeBar(years, { site, from, to }) {
       <div class="range">
         <label>From <select data-scope>${options(Number(from.slice(0, 4)) || years[0].year)}</select></label>
         <label>to <select data-scope>${options(Number(to.slice(0, 4)) || years.at(-1).year)}</select></label>
-        <button type="button" class="chip" data-random="${esc(query({ ...site, from, to }))}">Random show</button>
       </div>
     </div>`;
 }
@@ -447,7 +446,7 @@ function recordCards({ longestSetlist: set, longestSegue: seg, bustout, venueRun
 
 // Delegated listeners for the stats page, attached once to #view: the
 // tooltip, drag-to-select on the year chart, the range selects, and the
-// random-show button.
+// jump to the list of shows.
 export function wireStats(view) {
   const tip = document.createElement("div");
   tip.className = "tip";
@@ -539,17 +538,13 @@ export function wireStats(view) {
   view.addEventListener("focusout", hideTip);
   addEventListener("hashchange", hideTip);
 
-  view.addEventListener("click", async (e) => {
+  view.addEventListener("click", (e) => {
     // pointerup already navigated; keep the column's own link from firing too.
     // (A keyboard-activated click has detail 0 and always goes through.)
     if (e.detail && e.target.closest(".cols") && e.timeStamp - brushedAt < 1000) return e.preventDefault();
     if (e.target.closest("button[data-jump]")) {
-      return view.querySelector(".site-shows")?.scrollIntoView({ behavior: "smooth" });
+      view.querySelector(".site-shows")?.scrollIntoView({ behavior: "smooth" });
     }
-    const random = e.target.closest("button[data-random]");
-    if (!random) return;
-    const shows = await api(`shows?${random.dataset.random}`);
-    if (shows.length) location.hash = `#/show/${shows[Math.floor(Math.random() * shows.length)].id}`;
   });
 
   view.addEventListener("change", (e) => {

@@ -58,6 +58,11 @@ export function sortTable(button) {
   table.tBodies[0].append(...rows);
 }
 
+// A page's heading and summary line with the Deadbase skull to their left
+// (show, song and stats pages).
+export const pageTitle = (heading, lede = "") =>
+  `<div class="page-title"><span class="logo" aria-hidden="true"></span><div>${heading}${lede}</div></div>`;
+
 // Sortable table of show summaries, linking each to its show page.
 export function showList(shows) {
   if (!shows.length) return `<p class="muted">No shows found.</p>`;

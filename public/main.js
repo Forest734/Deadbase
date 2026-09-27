@@ -1,7 +1,7 @@
 // Hash router: #/, #/year/1977, #/show/1977-05-08, #/songs, #/song/<slug>,
 // #/search?q=..., #/stats?<filters>, and #/shows?<filters>, where <filters> are
 // any of the /api/shows filters.
-import { api, esc, formatDate, formatDay, place, showList, sortableTable, sortTable } from "./lib.js";
+import { api, esc, formatDate, formatDay, pageTitle, place, showList, sortableTable, sortTable } from "./lib.js";
 import { describeFilters, statsPage, wireStats } from "./stats.js";
 
 const view = document.getElementById("view");
@@ -10,7 +10,8 @@ const routes = {
   async home() {
     const years = await api("years");
     const total = years.reduce((n, y) => n + y.count, 0);
-    return `<h2>${total.toLocaleString()} shows, ${years[0].year}–${years.at(-1).year}</h2>
+    const heading = `<h2>${total.toLocaleString()} shows, ${years[0].year}–${years.at(-1).year}</h2>`;
+    return `${pageTitle(heading, `<p class="lede">Pick a year to see its shows.</p>`)}
       <ul class="years">${years
         .map((y) => `<li><a href="#/year/${y.year}"><strong>${y.year}</strong><span>${y.count} shows</span></a></li>`)
         .join("")}</ul>`;
@@ -23,7 +24,10 @@ const routes = {
         <a href="#/year/${y - 1}">← ${y - 1}</a>
         <a href="#/year/${y + 1}">${y + 1} →</a>
       </p>
-      <h2>${esc(year)} <span class="muted">· ${shows.length} shows</span></h2>
+      ${pageTitle(
+        `<h2>${esc(year)} <span class="muted">· ${shows.length} shows</span></h2>`,
+        shows.length ? `<p class="lede">${esc(formatDay(shows[0].date))} to ${esc(formatDay(shows.at(-1).date))}</p>` : "",
+      )}
       ${showList(shows)}`;
   },
 
@@ -44,15 +48,14 @@ const routes = {
         <a href="#/year/${s.year}">${s.year}</a>
         ${s.next ? `<a href="#/show/${esc(s.next)}">next show →</a>` : "<span></span>"}
       </p>
-      <h2>${esc(formatDate(s.date))}</h2>
-      <p class="lede">${esc(s.venue)} · ${esc(place(s))}</p>
+      ${pageTitle(`<h2>${esc(formatDate(s.date))}</h2>`, `<p class="lede">${esc(s.venue)} · ${esc(place(s))}</p>`)}
       <div class="sets">${sets}</div>`;
   },
 
   async songs() {
     const songs = await api("songs");
     const showLink = (id) => `<a href="#/show/${esc(id)}">${esc(formatDay(id))}</a>`;
-    return `<h2>${songs.length} songs</h2>
+    return `${pageTitle(`<h2>${songs.length} songs</h2>`, `<p class="lede">Click a column heading to sort, or filter by name.</p>`)}
       <input id="song-filter" type="search" placeholder="Filter songs" aria-label="Filter songs">
       ${sortableTable(
         [
@@ -69,8 +72,8 @@ const routes = {
   async song(slug) {
     const s = await api(`songs/${encodeURIComponent(slug)}`);
     if (!s) return `<h2>Song not found</h2>`;
-    return `<h2>${esc(s.name)}</h2>
-      <p class="lede">Played at ${s.count} shows, ${esc(formatDay(s.shows[0].date))} to ${esc(formatDay(s.shows.at(-1).date))}.</p>
+    const dates = `${esc(formatDay(s.shows[0].date))} to ${esc(formatDay(s.shows.at(-1).date))}`;
+    return `${pageTitle(`<h2>${esc(s.name)}</h2>`, `<p class="lede">Played at ${s.count} shows, ${dates}.</p>`)}
       ${showList(s.shows)}`;
   },
 
@@ -112,6 +115,13 @@ async function render() {
   if (path !== lastPath) window.scrollTo(0, 0);
   lastPath = path;
 }
+
+// Start over is a link home. Filters live in the URL, so leaving a page drops
+// them; the search box is the one thing that keeps its text, so clear it.
+document.getElementById("start-over").addEventListener("click", () => {
+  document.getElementById("search").q.value = "";
+  window.scrollTo(0, 0); // already home: no hashchange, so no render to scroll
+});
 
 document.getElementById("search").addEventListener("submit", (e) => {
   e.preventDefault();

@@ -63,7 +63,8 @@ header {
 
 .brand h1 { margin: 0; font-size: 1.5rem; color: var(--fg); letter-spacing: -0.01em; }
 nav { display: flex; gap: 1rem; }
-#search { flex: 1 1 16rem; }
+#search { flex: 1 1 12rem; }
+#start-over { white-space: nowrap; }
 
 input[type="search"] {
   width: 100%;
@@ -76,6 +77,20 @@ input[type="search"] {
 }
 
 main { padding-top: 1.5rem; padding-bottom: 3rem; min-height: 60vh; }
+
+/* The skull to the left of a page's title and summary. It's used as a mask so
+   it can be painted the middle step of the chart blue, in both themes. */
+.page-title { display: flex; align-items: center; gap: 0.9rem; margin: 0 0 1rem; }
+.page-title h2 { margin-bottom: 0.5rem; }
+.page-title h2:last-child { margin-bottom: 0; }
+.page-title .lede { margin: 0; }
+.logo {
+  flex: none;
+  height: 4.5rem;
+  aspect-ratio: 1374 / 2372;
+  background: var(--seq-3);
+  mask: url(logo.svg) center / contain no-repeat;
+}
 h2 { margin: 0 0 1rem; font-size: 1.5rem; }
 .muted { color: var(--muted); font-weight: normal; }
 .lede { margin-top: -0.5rem; color: var(--muted); }

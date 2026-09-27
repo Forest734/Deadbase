@@ -18,8 +18,7 @@ Notable changes to Deadbase. The format follows
   - the most common segues, show openers, second-set openers and encores;
   - a US state map, shows abroad, and the top venues;
   - records: longest setlist, longest segue run, biggest bust-out, and
-    longest run at one venue;
-  - a button that opens a random show from the range.
+    longest run at one venue.
 
   Every bar, cell and tile links to the shows behind it, and each chart can be
   shown as a table.
@@ -28,6 +27,11 @@ Notable changes to Deadbase. The format follows
   that place, followed by the list of its shows. The era buttons, year menus
   and year chart keep the place, so you can see, say, California in the
   Brent era.
+- A skull logo (traced from the project artwork), in the app's blue, to the
+  left of the title on the Years, year, Songs, show, song and Stats pages.
+  Years, year and Songs pages get a one-line summary under the title to match.
+- A Start over button in the header, on every page: it goes back to the home
+  page and clears the search box, leaving nothing filtered.
 - The `/api/stats` endpoint, and new `/api/shows` filters: `from`/`to` date
   range, `segue`, `venue`, `city`, `state` and `country`. `/api/years` now
   includes counts for each month. `/api/years` and `/api/stats` take the same
