@@ -1,7 +1,7 @@
 // The stats page, #/stats?from=&to=, optionally for one place (state=, country=,
 // or venue= plus city=). Every chart covers that scope, and every mark links to
 // the shows behind it (mostly via #/shows?<filters>).
-import { api, esc, formatDate, formatDay, pageTitle, place, showList, sortableTable } from "./lib.js";
+import { MONTHS, api, esc, formatDate, formatDay, pageTitle, place, showList, sortableTable } from "./lib.js";
 
 // Line-ups by keyboard player, the usual way fans split up the band's history.
 // Pigpen and Keith overlap from late 1971 to mid 1972.
@@ -11,8 +11,6 @@ const ERAS = [
   { name: "Brent", from: "1979-04-22", to: "1990-07-23" },
   { name: "Vince", from: "1990-09-07", to: "1995" },
 ];
-
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Colour bins 1-5 map to --seq-1..5 (one blue ramp). A value's bin is the
 // number of thresholds it reaches.
@@ -166,7 +164,7 @@ export async function statsPage(params) {
     </div>
     ${placesSection(stats, scope)}
     ${recordCards(stats.records)}
-    ${atSite ? `<h3 class="section site-shows">${esc(plural(list.length, "show"))}</h3>${showList(list)}` : ""}
+    ${atSite ? `<h3 class="section site-shows">${esc(plural(list.length, "show"))}</h3>${showList(list, { overview: false })}` : ""}
     <p class="muted note">Drums, Space and untitled jams are left out of the song counts and rankings.</p>`;
 }
 

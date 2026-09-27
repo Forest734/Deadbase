@@ -57,9 +57,12 @@ README.md has the API table.
 returns an HTML string that is written into `#view`. While a route loads, the old page stays up,
 dimmed, and a newer navigation replaces a slower one. Shared helpers (`esc`, `api`,
 `sortableTable`, …) live in `public/lib.js`. Every interpolated value must go through `esc()`. Tables use
-`sortableTable(columns, rows)`, where each column is `{ label, cell, sort, num? }`. Sorting happens client-side
+`sortableTable(columns, rows)`, where each column is `{ label, cell, sort, num?, cls?, note? }`. Sorting happens client-side
 on each cell's `data-sort` value, ties fall back to the original row order (`data-i`), and one delegated
-click handler on `#view` covers every table. Fetches use relative `api/...` paths.
+click handler on `#view` covers every table. The table's `data-sorted` records the current sort
+(`"0"`, `"0d"`, …); CSS uses it to show run and month styling only in ascending date order.
+`showList(shows, { overview })` expects shows oldest first. At 8+ rows it adds a filter box and
+a per-month/per-year chart (`wireShowLists` handles both, client-side only). Fetches use relative `api/...` paths.
 
 **Stats (`public/stats.js`)** draws its charts in HTML and CSS: grids of links, not SVG or canvas.
 It is scoped by `{ site, from, to }`, where `site` holds the place filters (`state`, `country`, or

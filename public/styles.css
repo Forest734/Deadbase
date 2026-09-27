@@ -138,7 +138,7 @@ footer {
 .sortable tbody tr:hover { background: var(--card); }
 .sortable .num { text-align: right; font-variant-numeric: tabular-nums; }
 .sortable td:first-child { font-variant-numeric: tabular-nums; }
-.shows td:first-child, .songs td:nth-child(n+3) { white-space: nowrap; }
+.shows td:first-child, .songs td:nth-child(n+4) { white-space: nowrap; }
 
 .sortable th button {
   font: inherit;
@@ -156,11 +156,72 @@ footer {
 .sortable th[aria-sort="descending"] button::after { content: " ↓"; opacity: 1; }
 
 .shows td:nth-child(3) { color: var(--muted); }
-.songs td:nth-child(n+3) { font-variant-numeric: tabular-nums; }
+.songs td:nth-child(n+4) { font-variant-numeric: tabular-nums; }
+
+/* Lists: a thin bar per row, scaled to the column's largest value, with the
+   number at its tip. The columns stay numeric for sorting but align left so
+   the bars share a baseline. */
+.sortable th.bars, .sortable td.bars { width: 9rem; text-align: left; }
+.inline-bar { display: flex; align-items: center; gap: 0.4rem; }
+.inline-bar .fill { flex: none; width: calc((100% - 2.5rem) * var(--w)); min-width: 2px; height: 6px; background: var(--bar); border-radius: 0 3px 3px 0; }
+.inline-bar .val { font-size: 0.875rem; color: var(--fg); font-variant-numeric: tabular-nums; }
+
+/* Years played: a bar on a timeline shared by every song. */
+.sortable th.span-col, .sortable td.span-col { width: 10rem; text-align: left; }
+.span-track { position: relative; display: block; height: 6px; background: var(--cell-empty); border-radius: 3px; }
+.span-fill { position: absolute; top: 0; bottom: 0; min-width: 3px; background: var(--bar); border-radius: 3px; }
+.span-axis { display: flex; justify-content: space-between; font-size: 0.6875rem; font-weight: normal; color: var(--muted); }
+
+/* In date order, a run's repeat nights recede and each month or year starts
+   with a stronger line. */
+.shows .where { display: none; }
+.run-tag { margin-left: 0.4rem; font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.shows[data-sorted="0"] tr.repeat td:nth-child(2) a { color: var(--muted); }
+.shows[data-sorted="0"] tr.starts:not(:first-child) td { border-top: 2px solid var(--axis); }
+
+.list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin: 0.5rem 0 0.75rem; }
+.list-tools .list-filter { flex: 0 1 20rem; }
+.list-status { margin: 0; font-size: 0.875rem; color: var(--muted); }
+
+/* A list's overview: shows per month or year; each column is a filter toggle. */
+.overview { margin: 0 0 1rem; }
+.ov-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 2px;
+  height: 4.5rem;
+  margin-top: 1.25rem;
+  border-bottom: 1px solid var(--axis);
+}
+.ov-col {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 100%;
+  padding: 0;
+  font: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.ov-col:disabled { cursor: default; }
+.ov-col .bar { width: min(100%, 24px); height: var(--h); background: var(--bar); border-radius: 4px 4px 0 0; }
+.show-list.picking .ov-col .bar { background: var(--bar-dim); }
+.show-list.picking .ov-col[aria-pressed="true"] .bar { background: var(--bar); }
+.ov-col:hover .bar { filter: brightness(1.15); }
+.ov-col:focus-visible { outline: 2px solid var(--fg); outline-offset: 1px; }
+.ov-peak { position: absolute; bottom: calc(var(--h) + 0.15rem); font-size: 0.75rem; color: var(--muted); }
+.ov-axis { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 2px; margin-top: 0.25rem; font-size: 0.75rem; color: var(--muted); }
+.ov-axis span { display: flex; justify-content: center; white-space: nowrap; }
+.ov-hint { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--muted); }
 
 @media (max-width: 36rem) {
+  .shows th:nth-child(3), .shows td:nth-child(3),
   .shows th:nth-child(4), .shows td:nth-child(4),
-  .songs th:nth-child(3), .songs td:nth-child(3) { display: none; }
+  .songs th:nth-child(3), .songs td:nth-child(3),
+  .songs th:nth-child(4), .songs td:nth-child(4) { display: none; }
+  .shows .where { display: block; font-size: 0.8125rem; color: var(--muted); }
 }
 
 /* Page loads: the old view stays, dimmed, until the new one is ready. */

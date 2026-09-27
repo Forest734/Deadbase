@@ -1,7 +1,9 @@
 // Hash router: #/, #/year/1977, #/show/1977-05-08, #/songs, #/song/<slug>,
 // #/search?q=..., #/stats?<filters>, and #/shows?<filters>, where <filters> are
 // any of the /api/shows filters.
-import { api, esc, formatDate, formatDay, pageTitle, place, showList, sortableTable, sortTable } from "./lib.js";
+import {
+  api, esc, formatDate, formatDay, inlineBar, pageTitle, place, showList, sortableTable, sortTable, wireShowLists,
+} from "./lib.js";
 import { describeFilters, statsPage, wireStats } from "./stats.js";
 
 const view = document.getElementById("view");
@@ -55,12 +57,32 @@ const routes = {
   async songs() {
     const songs = await api("songs");
     const showLink = (id) => `<a href="#/show/${esc(id)}">${esc(formatDay(id))}</a>`;
+    const maxCount = Math.max(...songs.map((s) => s.count));
+    // Years played, as a bar on one timeline shared by every song.
+    const year = (id) => Number(id.slice(0, 4));
+    const lo = Math.min(...songs.map((s) => year(s.first)));
+    const hi = Math.max(...songs.map((s) => year(s.last)));
+    const x = (y) => ((y - lo) / (hi - lo + 1)) * 100;
+    const span = (s) => {
+      const [a, b] = [year(s.first), year(s.last)];
+      const years = a === b ? String(a) : `${a}–${b}`;
+      return `<span class="span-track" data-tip="${years}" data-tip-label="${esc(s.name)}" role="img" aria-label="Played ${a === b ? `in ${a}` : `from ${a} to ${b}`}">
+        <span class="span-fill" style="left:${x(a)}%;width:${x(b + 1) - x(a)}%"></span></span>`;
+    };
     return `${pageTitle(`<h2>${songs.length} songs</h2>`, `<p class="lede">Click a column heading to sort, or filter by name.</p>`)}
       <input id="song-filter" type="search" placeholder="Filter songs" aria-label="Filter songs">
       ${sortableTable(
         [
           { label: "Song", cell: (s) => `<a href="#/song/${esc(s.slug)}">${esc(s.name)}</a>`, sort: (s) => s.name },
-          { label: "Shows", num: true, cell: (s) => s.count, sort: (s) => s.count },
+          { label: "Shows", num: true, cls: "bars", cell: (s) => inlineBar(s.count, maxCount), sort: (s) => s.count },
+          {
+            label: "Years played",
+            note: `<span class="span-axis" aria-hidden="true"><span>${lo}</span><span>${hi}</span></span>`,
+            num: true,
+            cls: "span-col",
+            cell: span,
+            sort: (s) => year(s.last) - year(s.first),
+          },
           { label: "First", cell: (s) => showLink(s.first), sort: (s) => s.first },
           { label: "Last", cell: (s) => showLink(s.last), sort: (s) => s.last },
         ],
@@ -143,5 +165,6 @@ view.addEventListener("click", (e) => {
 });
 
 wireStats(view);
+wireShowLists(view);
 window.addEventListener("hashchange", render);
 render();

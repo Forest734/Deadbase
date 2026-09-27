@@ -39,6 +39,14 @@ Notable changes to Deadbase. The format follows
 
 ### Changed
 
+- Show lists (year, song, search and place pages, and the lists the Stats
+  charts open) are easier to scan. Each list of 8 or more shows has a filter box
+  and a chart of shows per month (or per year) whose columns narrow the list.
+  Each show's setlist length is a small bar. In date order, runs of shows at
+  one venue are tagged ("6-show run") with the repeat nights greyed, and a line
+  marks each new month or year. On phones the city sits under the venue name.
+- The song index shows plays as a bar and a "years played" bar on a timeline
+  shared by every song, sortable by how long the song stayed in rotation.
 - Show lists, the song index and song pages write dates out ("May 8, 1977")
   instead of showing them as numbers ("1977-05-08").
 
