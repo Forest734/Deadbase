@@ -20,7 +20,7 @@ const routes = {
   },
 
   async year(year) {
-    const shows = await api(`shows?year=${encodeURIComponent(year)}`);
+    const shows = await api(`shows?year=${encodeURIComponent(year)}&sets=1`);
     const y = Number(year);
     return `<p class="pager">
         <a href="#/year/${y - 1}">← ${y - 1}</a>
@@ -30,7 +30,7 @@ const routes = {
         `<h2>${esc(year)} <span class="muted">· ${shows.length} shows</span></h2>`,
         shows.length ? `<p class="lede">${esc(formatDay(shows[0].date))} to ${esc(formatDay(shows.at(-1).date))}</p>` : "",
       )}
-      ${showList(shows)}`;
+      ${showList(shows, { setlists: true })}`;
   },
 
   async show(id) {

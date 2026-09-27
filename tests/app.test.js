@@ -1,6 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { app } from "../src/app.js";
+import { handle } from "../src/api.js";
 
 let server;
 let base;
@@ -62,6 +63,16 @@ test("filters shows by year, song and text", async () => {
 
   const morningDew77 = (await get("/api/shows?year=1977&song=morning-dew")).body;
   assert.ok(morningDew77.some((s) => s.id === "1977-05-08"));
+});
+
+test("show lists carry setlists only when asked", async () => {
+  const plain = (await get("/api/shows?year=1977")).body;
+  assert.ok(plain.every((s) => !("sets" in s)));
+
+  const withSets = (await get("/api/shows?year=1977&sets=1")).body;
+  assert.equal(withSets.length, plain.length);
+  const cornell = withSets.find((s) => s.id === "1977-05-08");
+  assert.deepEqual(cornell.sets, (await get("/api/shows/1977-05-08")).body.sets);
 });
 
 test("song index and song detail", async () => {
@@ -155,4 +166,16 @@ test("years and stats take the same filters as shows", async () => {
   const oregonBrentShows = (await get("/api/shows?state=OR&from=1979-04-22&to=1990-07-23")).body;
   assert.equal(oregonBrent.totals.shows, oregonBrentShows.length);
   assert.deepEqual(oregonBrent.states.map((s) => s.state), ["OR"]);
+});
+
+test("the API answers the same without the server, as on GitHub Pages", async () => {
+  for (const path of ["shows/1977-05-08", "songs/morning-dew", "shows?year=1977&sets=1", "stats?state=CA&from=1979"]) {
+    const [route, query = ""] = path.split("?");
+    const direct = handle(route, Object.fromEntries(new URLSearchParams(query)));
+    assert.equal(direct.status, 200);
+    assert.deepEqual(JSON.parse(JSON.stringify(direct.body)), (await get(`/api/${path}`)).body);
+  }
+  assert.equal(handle("shows/1999-01-01").status, 404);
+  assert.equal(handle("nope").status, 404);
+  assert.equal((await get("/api/nope")).status, 404);
 });

@@ -9,6 +9,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "node --test",
+    "build": "node scripts/build-pages.js",
     "import": "node scripts/import-gdshowsdb.js"
   },
   "engines": {

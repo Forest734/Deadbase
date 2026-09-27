@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
-
 // Built by scripts/import-gdshowsdb.js; sorted by id, which sorts by date.
-const { source, shows } = JSON.parse(
-  readFileSync(new URL("../data/shows.json", import.meta.url), "utf8"),
-);
+// Imported rather than read from disk, so this module also runs in the
+// browser for the GitHub Pages build (see src/api.js).
+import data from "../data/shows.json" with { type: "json" };
+
+const { source, shows } = data;
 
 export function slugify(name) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -107,8 +107,9 @@ function filterShows({ year, from, to, song, segue, venue, city, state, country,
   return result;
 }
 
-export function findShows(filters) {
-  return filterShows(filters).map(summary);
+// With `sets`, each summary also carries the show's setlist.
+export function findShows(filters, { sets = false } = {}) {
+  return filterShows(filters).map((show) => (sets ? { ...summary(show), sets: show.sets } : summary(show)));
 }
 
 export function getShow(id) {

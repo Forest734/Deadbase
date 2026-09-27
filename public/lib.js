@@ -17,12 +17,9 @@ export const formatDay = (iso) =>
     year: "numeric", month: "short", day: "numeric",
   });
 
-export async function api(path) {
-  const res = await fetch(`api/${path}`);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
+// Resolves to the JSON the API returns for `path` (such as "shows?year=1977"),
+// or null for a 404.
+export { api } from "./api.js";
 
 export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -32,8 +29,9 @@ const plural = (n, word) => `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`
 // sort(row) -> string|number, num?, cls?, note? }, where `note` is extra
 // html under the header's label. `sorted` is the initially sorted
 // column. The table's data-sorted says how it's sorted now: "0" is column 0
-// ascending, "0d" descending.
-export function sortableTable(columns, rows, { sorted = 0, cls = "", rowAttrs = () => "" } = {}) {
+// ascending, "0d" descending. `after(row)` is html for rows of class "detail"
+// that follow a row and move with it when the table is sorted.
+export function sortableTable(columns, rows, { sorted = 0, cls = "", rowAttrs = () => "", after = () => "" } = {}) {
   const classes = (c) => [c.num && "num", c.cls].filter(Boolean).join(" ");
   const head = columns
     .map((c, i) => `<th class="${classes(c)}" ${i === sorted ? 'aria-sort="ascending"' : ""}>
@@ -42,7 +40,7 @@ export function sortableTable(columns, rows, { sorted = 0, cls = "", rowAttrs = 
   const body = rows
     .map((r, ri) => `<tr data-i="${ri}" ${rowAttrs(r)}>${columns
       .map((c) => `<td class="${classes(c)}" data-sort="${esc(c.sort(r))}">${c.cell(r)}</td>`)
-      .join("")}</tr>`)
+      .join("")}</tr>${after(r)}`)
     .join("");
   return `<table class="sortable ${cls}" data-sorted="${sorted}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
 }
@@ -57,14 +55,19 @@ export function sortTable(button) {
   th.setAttribute("aria-sort", dir === 1 ? "ascending" : "descending");
   table.dataset.sorted = dir === 1 ? String(col) : `${col}d`;
 
+  // Each row sorts together with the detail rows under it.
+  const groups = [];
+  for (const tr of table.tBodies[0].rows) {
+    if (tr.classList.contains("detail")) groups.at(-1).push(tr);
+    else groups.push([tr]);
+  }
   const key = (tr) => tr.children[col].dataset.sort;
-  const rows = [...table.tBodies[0].rows];
-  rows.sort((a, b) => {
+  groups.sort(([a], [b]) => {
     const cmp = num ? Number(key(a)) - Number(key(b)) : key(a).localeCompare(key(b));
     // Ties keep the original (chronological or alphabetical) order.
     return dir * cmp || Number(a.dataset.i) - Number(b.dataset.i);
   });
-  table.tBodies[0].append(...rows);
+  table.tBodies[0].append(...groups.flat());
 }
 
 // A page's heading and summary line with the Deadbase skull to their left
@@ -77,12 +80,26 @@ export const pageTitle = (heading, lede = "") =>
 export const inlineBar = (value, max) =>
   `<span class="inline-bar"><span class="fill" style="--w:${value / max}"></span><span class="val">${value.toLocaleString()}</span></span>`;
 
+// A show's sets, one line each with the songs left to right: ">" where a song
+// segues into the next, "·" between the rest (some song names have commas).
+function setlist(sets) {
+  const song = (s, i, songs) => {
+    const link = `<a href="#/song/${esc(s.slug)}">${esc(s.name)}</a>`;
+    if (s.segue) return `${link}&nbsp;<span class="segue" title="segues into next song">&gt;</span>`;
+    return i < songs.length - 1 ? `${link}<span class="sep">&nbsp;·</span>` : link;
+  };
+  return `<dl class="setlist">${sets
+    .map((set) => `<dt>${esc(set.label)}</dt><dd>${set.songs.map(song).join(" ")}</dd>`)
+    .join("")}</dl>`;
+}
+
 // Show summaries (oldest first) as a sortable table, each linking to its show.
 // In date order, repeat nights at one venue are greyed after the first, which
 // is tagged with the run's length, and a line marks each new month (or year).
 // Lists of 8 or more also get, unless `overview` is false, a shows-per-month
-// (or per-year) chart whose columns narrow the list.
-export function showList(shows, { overview = true } = {}) {
+// (or per-year) chart whose columns narrow the list. With `setlists` (the
+// shows must carry their `sets`), each show's setlist runs under its venue.
+export function showList(shows, { overview = true, setlists = false } = {}) {
   if (!shows.length) return `<p class="muted">No shows found.</p>`;
   const oneYear = shows[0].year === shows.at(-1).year;
   const periodOf = (s) => (oneYear ? s.date.slice(0, 7) : String(s.year));
@@ -128,7 +145,13 @@ export function showList(shows, { overview = true } = {}) {
       },
     ],
     shows,
-    { cls: "shows", rowAttrs },
+    {
+      cls: `shows${setlists ? " with-setlists" : ""}`,
+      rowAttrs,
+      after: (s) => (setlists && s.sets.length
+        ? `<tr class="detail" data-period="${meta.get(s).period}"><td></td><td colspan="3">${setlist(s.sets)}</td></tr>`
+        : ""),
+    },
   );
   if (!overview || shows.length < 8) return table;
   return `<div class="show-list" data-list>${listOverview(shows, oneYear, periodOf)}${table}</div>`;
@@ -179,12 +202,12 @@ export function wireShowLists(view) {
   const pick = (list, col) => {
     const period = col?.dataset.period ?? "";
     list.dataset.period = period;
-    const rows = [...list.querySelectorAll("tbody tr")];
-    let shown = 0;
-    for (const row of rows) {
+    // Setlist rows carry their show's period, so they come and go with it.
+    for (const row of list.querySelectorAll("tbody tr")) {
       row.hidden = Boolean(period) && row.dataset.period !== period;
-      if (!row.hidden) shown++;
     }
+    const rows = [...list.querySelectorAll("tbody tr:not(.detail)")];
+    const shown = rows.filter((row) => !row.hidden).length;
     for (const c of list.querySelectorAll(".ov-col")) c.setAttribute("aria-pressed", String(c === col));
     list.classList.toggle("picking", Boolean(period));
     const hint = list.querySelector(".ov-hint");

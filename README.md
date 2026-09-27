@@ -7,12 +7,17 @@ Stats page. Express 5 serves a JSON API plus a no-build front end in `public/`.
 npm install
 npm run dev      # http://localhost:3000 (PORT overrides), restarts on change
 npm test
+npm run build    # the static GitHub Pages site, into dist/
 ```
+
+The site is live at **https://forest734.github.io/Deadbase/**, deployed by
+GitHub Actions on every push to `main`.
 
 ## What's in it
 
-- **Years, Songs and show pages.** Every show by year; each setlist split into
-  sets, with segues marked; and every song with the shows it was played at.
+- **Years, Songs and show pages.** Every show by year, each with its setlist
+  underneath; each setlist split into sets, with segues marked; and every song
+  with the shows it was played at.
   Long show lists have a shows-per-month (or per-year) chart whose columns
   narrow them. Setlist lengths show as bars, and runs of shows at one
   venue are tagged. The song index shows how often, and across which years,
@@ -28,6 +33,18 @@ npm test
 
 Pages are hash routes (`#/year/1977`, `#/show/1977-05-08`, `#/song/morning-dew`,
 `#/stats?state=CA&from=1979`), so any view can be bookmarked or shared.
+
+## Deploying
+
+GitHub Pages serves only static files, so the Pages build runs the API in the
+browser instead of on a server. `npm run build` copies `public/` into `dist/`,
+along with the API code (`src/api.js`, `src/data.js`) and `data/shows.json`,
+and swaps the front end's `fetch` for a direct call into that code. Pages,
+charts and links behave the same as with the Express server.
+
+`.github/workflows/pages.yml` runs the tests, builds, and deploys to Pages on
+every push to `main`. It can also be run by hand from the Actions tab. The
+repository's Settings → Pages → Source must be set to **GitHub Actions**.
 
 ## Data
 
@@ -54,7 +71,7 @@ have no setlist.
 | `GET /health` | `{ status: "ok" }` |
 | `GET /api` | service name, version, and the gdshowsdb commit the data came from |
 | `GET /api/years?<filters>` | `[{ year, count, months }]` for every year 1965–1995, counting only matching shows; `months` is 12 per-month counts, January first |
-| `GET /api/shows?<filters>` | summaries of the matching shows, oldest first |
+| `GET /api/shows?<filters>` | summaries of the matching shows, oldest first; add `sets=1` to include each show's `sets` |
 | `GET /api/shows/:id` | one show with `sets[{ label, songs[{ name, slug, segue }] }]`, plus `prev`/`next` ids |
 | `GET /api/songs` | `[{ slug, name, count, first, last }]`, where `first` and `last` are show ids |
 | `GET /api/songs/:slug` | a song and every show it was played at |

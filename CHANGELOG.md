@@ -8,6 +8,10 @@ Notable changes to Deadbase. The format follows
 
 ### Added
 
+- Deadbase is on GitHub Pages at https://forest734.github.io/Deadbase/,
+  redeployed on every push to `main`. The Pages build runs the API in the
+  browser, over the same data, so everything works without a server.
+  `npm run build` produces the site in `dist/`.
 - A Stats page with charts for any range of years or era (Pigpen, Keith & Donna,
   Brent, Vince). Pick the range from the era buttons, the year menus, or by
   dragging across the shows-per-year chart:
@@ -39,6 +43,10 @@ Notable changes to Deadbase. The format follows
 
 ### Changed
 
+- A year's page shows each show's setlist under its venue, one line per set
+  with the songs left to right (">" marks a segue). Each setlist is joined to
+  its show's row and ruled off from the next show, and the two highlight
+  together. `/api/shows` takes `sets=1` to include setlists.
 - Show lists (year, song, search and place pages, and the lists the Stats
   charts open) are easier to scan. Each list of 8 or more shows has a chart of
   shows per month (or per year), with the count on top of each bar, whose

@@ -179,6 +179,28 @@ footer {
 .shows[data-sorted="0"] tr.repeat td:nth-child(2) a { color: var(--muted); }
 .shows[data-sorted="0"] tr.starts:not(:first-child) td { border-top: 2px solid var(--axis); }
 
+/* Year pages: each setlist runs under its venue, joined to its show's row (no
+   line between them, and they highlight together) and ruled off from the next. */
+.with-setlists tr:has(+ .detail) td { border-bottom: 0; padding-bottom: 0.2rem; }
+.with-setlists .detail td { padding-top: 0; padding-bottom: 0.8rem; }
+.with-setlists tr:has(+ .detail:hover), .with-setlists tr:hover + .detail { background: var(--card); }
+.setlist {
+  display: grid;
+  grid-template-columns: 3.75rem minmax(0, 1fr); /* fits "Encore", so songs line up show to show */
+  align-items: baseline;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  padding-left: 0.65rem;
+  border-left: 2px solid var(--seq-1);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+.setlist dt { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.setlist dd { margin: 0; }
+.setlist a { color: var(--fg); }
+.setlist a:hover { color: var(--accent); }
+.setlist .sep, .setlist .segue { color: var(--muted); }
+
 /* A list's overview: shows per month or year; each column is a filter toggle. */
 .overview { margin: 0 0 1rem; }
 .ov-cols {
@@ -221,6 +243,7 @@ footer {
   .songs th:nth-child(3), .songs td:nth-child(3),
   .songs th:nth-child(4), .songs td:nth-child(4) { display: none; }
   .shows .where { display: block; font-size: 0.8125rem; color: var(--muted); }
+  .shows .detail td:first-child { display: none; } /* the setlist takes the date column too */
 }
 
 /* Page loads: the old view stays, dimmed, until the new one is ready. */

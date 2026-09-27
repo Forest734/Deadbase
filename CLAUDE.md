@@ -15,6 +15,7 @@ npm test                             # node:test, all files in tests/
 node --test tests/app.test.js        # one file
 node --test --test-name-pattern="Cornell" tests/app.test.js   # one test
 npm run import -- <gdshowsdb clone>  # regenerate data/shows.json
+npm run build                        # static GitHub Pages site into dist/
 ```
 
 No linter, formatter, or build step. `node --check public/*.js` catches front-end syntax errors;
@@ -56,9 +57,20 @@ Jam) from song counts and rankings. Its rotation columns are the years (or, with
 year, the months) that have shows. Venue runs are consecutive in the band's whole history,
 not in the filtered list.
 
-`src/app.js` is thin routing over `data.js` and exports `app` without listening
-(`src/index.js` listens), so tests can bind it to port 0. It also serves `public/` statically.
-README.md has the API table.
+`src/api.js` is the API's routing over `data.js`, as a plain `handle(path, query)` returning
+`{ status, body }`, with no Express in it. `src/app.js` sends every `/api` request to it. It also
+serves `public/` statically, and exports `app` without listening (`src/index.js` listens), so
+tests can bind it to port 0. README.md has the API table. `data.js` loads the JSON with an
+`import ... with { type: "json" }`, not `fs`, so both modules also run in a browser.
+
+**GitHub Pages** has no server, so the static build runs the API in the browser.
+`scripts/build-pages.js` copies `public/` to `dist/`, replaces `public/api.js` (the front end's
+`fetch`) with `static/api.js` (which calls `handle` directly), and adds `src/api.js`,
+`src/data.js` and `data/shows.json` at the same relative paths. Nothing else differs, so a
+front-end change needs no Pages-specific work. Keep the front end's `api/...` paths relative,
+because the site is served from `/Deadbase/`. `.github/workflows/pages.yml` tests, builds and
+deploys on every push to `main`. To check a build locally, serve `dist/` from a parent
+directory under a `Deadbase/` symlink with `python3 -m http.server`.
 
 **Front end** is native ES modules, no bundler. Fetches use relative `api/...` paths.
 
@@ -70,7 +82,7 @@ README.md has the API table.
 - Every interpolated value must go through `esc()`.
 - Filters live in the URL, so nothing needs resetting. The header's Start over is a plain link
   to `#/` that also clears the search box.
-- `public/lib.js` holds the shared helpers: `esc`, `api`, date formatting, `pageTitle`,
+- `public/lib.js` holds the shared helpers: `esc`, `api` (re-exported from `api.js`), date formatting, `pageTitle`,
   `sortableTable`, `showList`, `inlineBar`.
   - `pageTitle(heading, lede)` puts the skull logo left of a page's title. `public/logo.svg` is
     a potrace trace, used as a CSS mask painted `--seq-3`.
@@ -78,10 +90,13 @@ README.md has the API table.
     Sorting is client-side on each cell's `data-sort`; ties keep the original row order
     (`data-i`). One delegated click handler on `#view` covers every table. The table's
     `data-sorted` records the current sort (`"0"`, `"0d"`, …). CSS uses it to show run and
-    month styling only in ascending date order.
-  - `showList(shows, { overview })` expects shows oldest first. At 8+ rows (and `overview` not
-    false) it adds a per-month/per-year chart whose columns narrow the list; `wireShowLists`
-    handles that, client-side only.
+    month styling only in ascending date order. Its `after(row)` option adds `tr.detail` rows
+    that sort with the row above them.
+  - `showList(shows, { overview, setlists })` expects shows oldest first. At 8+ rows (and
+    `overview` not false) it adds a per-month/per-year chart whose columns narrow the list;
+    `wireShowLists` handles that, client-side only. `setlists` (the year page, which fetches
+    `shows?...&sets=1`) puts each show's sets in a detail row under it; the detail row carries
+    the show's `data-period` so the chart filter hides both.
 - **`wireStats(view)` provides the `[data-tip]` tooltip for every page,** not just Stats. The
   show-list charts and the song index's year bars rely on it.
 
@@ -104,4 +119,5 @@ time.
 - Commit identity: Forest734 noreply, set globally.
 - `CHANGELOG.md` (Keep a Changelog): record each user-visible change under
   `## [Unreleased]` in the commit that makes it. When cutting a release, rename that
-  heading to the version and date, and bump `package.json` and the version in `/api`.
+  heading to the version and date, and bump `package.json` and `VERSION` in `src/api.js`.
+- Pushing to `main` deploys to https://forest734.github.io/Deadbase/.
